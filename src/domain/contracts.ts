@@ -28,6 +28,8 @@ export const memoryType = z.enum([
 export const decisionStatus = z.enum(["active", "superseded"]);
 export const activityType = z.enum([
   "memory.created",
+  "memory.updated",
+  "memory.deleted",
   "claim.acquired",
   "claim.released",
   "claim.renewed",
@@ -47,6 +49,29 @@ export const searchInput = projectInput.extend({
   query: z.string().trim().min(1).max(1000),
   limit: limit.optional(),
 });
+export const memoryGetInput = projectInput.extend({ memoryId: identifier });
+export const memoryDeleteBody = actorInput.extend({
+  expectedVersion: z.number().int().positive(),
+});
+export const memoryDeleteInput = memoryDeleteBody.extend({
+  memoryId: identifier,
+});
+export const memoryUpdateBody = memoryDeleteBody.extend({
+  type: memoryType.optional(),
+  content: content.optional(),
+  importance: z.number().min(0).max(1).nullable().optional(),
+  metadata: metadata.nullable().optional(),
+});
+export const memoryUpdateInput = memoryUpdateBody
+  .extend({ memoryId: identifier })
+  .refine(
+    (input) =>
+      input.type !== undefined ||
+      input.content !== undefined ||
+      input.importance !== undefined ||
+      input.metadata !== undefined,
+    "Provide at least one memory field to update.",
+  );
 export const acquireInput = actorInput.extend({
   resource: z.string().trim().min(1).max(1024),
   intent: z.string().trim().min(1).max(2000).optional(),
@@ -96,6 +121,13 @@ export const memorySchema = z.strictObject({
   importance: z.number().min(0).max(1).nullable(),
   metadata: metadata.nullable(),
   createdAt: timestamp,
+  version: z.number().int().positive(),
+  updatedBy: identifier,
+  updatedAt: timestamp,
+});
+export const memoryDeleted = z.strictObject({
+  deleted: z.literal(true),
+  memoryId: identifier,
 });
 export const claimSchema = z.strictObject({
   id: identifier,
@@ -164,6 +196,10 @@ export type ActivityEvent = z.infer<typeof activitySchema>;
 export type Metadata = z.infer<typeof metadata>;
 export type RememberInput = z.infer<typeof rememberInput>;
 export type SearchInput = z.infer<typeof searchInput>;
+export type MemoryGetInput = z.infer<typeof memoryGetInput>;
+export type MemoryUpdateInput = z.infer<typeof memoryUpdateInput>;
+export type MemoryDeleteInput = z.infer<typeof memoryDeleteInput>;
+export type MemoryDeleted = z.infer<typeof memoryDeleted>;
 export type AcquireInput = z.infer<typeof acquireInput>;
 export type ReleaseInput = z.infer<typeof releaseInput>;
 export type RenewInput = z.infer<typeof renewInput>;

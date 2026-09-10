@@ -1,8 +1,12 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
 import initial from "./migrations/001_initial.sql" with { type: "text" };
+import memoryMutations from "./migrations/002_memory_mutations.sql" with { type: "text" };
 
-const migrations = [{ version: 1, sql: initial }];
+const migrations = [
+  { version: 1, sql: initial },
+  { version: 2, sql: memoryMutations },
+];
 
 export function migrate(db: Database): void {
   db.transaction(() => {

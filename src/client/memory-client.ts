@@ -104,6 +104,46 @@ export class MemoryClient {
       c.memoriesResult,
     );
   }
+  getMemory(memoryId: string) {
+    const input = c.memoryGetInput.parse({
+      memoryId,
+      projectId: this.options.projectId,
+    });
+    return this.request(
+      "GET",
+      `/memories/${encodeURIComponent(input.memoryId)}${this.query({ projectId: input.projectId })}`,
+      c.memorySchema,
+    );
+  }
+  updateMemory(
+    memoryId: string,
+    input: Omit<c.MemoryUpdateInput, "memoryId" | "projectId" | "agentId">,
+  ) {
+    const { memoryId: id, ...body } = c.memoryUpdateInput.parse({
+      ...input,
+      ...this.actor,
+      memoryId,
+    });
+    return this.request(
+      "PATCH",
+      `/memories/${encodeURIComponent(id)}`,
+      c.memorySchema,
+      body,
+    );
+  }
+  deleteMemory(memoryId: string, expectedVersion: number) {
+    const { memoryId: id, ...body } = c.memoryDeleteInput.parse({
+      ...this.actor,
+      memoryId,
+      expectedVersion,
+    });
+    return this.request(
+      "DELETE",
+      `/memories/${encodeURIComponent(id)}`,
+      c.memoryDeleted,
+      body,
+    );
+  }
   async claim(input: Omit<c.AcquireInput, "projectId" | "agentId">) {
     const result = await this.request(
       "POST",
@@ -189,4 +229,5 @@ export type {
   Decision,
   ActivityEvent,
   Metadata,
+  MemoryDeleted,
 } from "../domain/contracts";

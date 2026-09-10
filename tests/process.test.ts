@@ -21,10 +21,19 @@ test("a second daemon cannot open the database on a different port; restart pres
       projectId: "persist",
       agentId: "a",
     });
-    const memory = await a.remember({
+    const original = await a.remember({
       type: "fact",
       content: "Durable across processes",
     });
+    const memory = await a.updateMemory(original.id, {
+      expectedVersion: original.version,
+      content: "Durable corrected knowledge",
+    });
+    const removed = await a.remember({
+      type: "note",
+      content: "discardedtoken",
+    });
+    await a.deleteMemory(removed.id, removed.version);
     const contender = Bun.spawn(
       [process.execPath, `${import.meta.dir}/../src/index.ts`],
       {
@@ -53,6 +62,10 @@ test("a second daemon cannot open the database on a different port; restart pres
         agentId: "b",
       });
       expect((await b.search({ query: "Durable" })).items).toEqual([memory]);
+      expect((await b.search({ query: "discardedtoken" })).items).toEqual([]);
+      await expect(b.getMemory(removed.id)).rejects.toMatchObject({
+        code: "MEMORY_NOT_FOUND",
+      });
     } finally {
       await restarted.stop();
     }
@@ -116,7 +129,7 @@ test("stdio MCP and HTTP share one process; stdio diagnostics never corrupt the 
       agentId: "http-agent",
     });
     expect((await http.search({ query: "stdio" })).items).toEqual([memory]);
-    expect((await client.listTools()).tools).toHaveLength(11);
+    expect((await client.listTools()).tools).toHaveLength(14);
   } finally {
     clearTimeout(timer);
     await client.close();

@@ -94,6 +94,36 @@ export function createRouter(
         Response.json(app.memories.search(query(url, c.searchInput))),
     },
     {
+      method: "GET",
+      path: /^\/memories\/(?<memoryId>[^/]+)$/,
+      handle: (_, url, params) =>
+        Response.json(app.memories.get(query(url, c.memoryGetInput, params))),
+    },
+    {
+      method: "PATCH",
+      path: /^\/memories\/(?<memoryId>[^/]+)$/,
+      handle: async (request, _, params) => {
+        const input = await body(request, c.memoryUpdateBody);
+        return Response.json(
+          app.memories.update(
+            parseInput(c.memoryUpdateInput, { ...input, ...params }),
+          ),
+        );
+      },
+    },
+    {
+      method: "DELETE",
+      path: /^\/memories\/(?<memoryId>[^/]+)$/,
+      handle: async (request, _, params) => {
+        const input = await body(request, c.memoryDeleteBody);
+        return Response.json(
+          app.memories.delete(
+            parseInput(c.memoryDeleteInput, { ...input, ...params }),
+          ),
+        );
+      },
+    },
+    {
       method: "POST",
       path: /^\/claims$/,
       handle: async (request) =>

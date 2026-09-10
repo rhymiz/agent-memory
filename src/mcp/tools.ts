@@ -30,13 +30,14 @@ const write = {
   destructiveHint: false,
   openWorldHint: false,
 };
+const destructive = { ...write, destructiveHint: true };
 
 export function registerTools(server: McpServer, app: Application): void {
   server.registerTool(
     "memory_remember",
     {
       description:
-        "Store reusable project knowledge. Memories are append-only.",
+        "Store new reusable project knowledge. Correct existing knowledge with memory_update; remove obsolete or duplicate knowledge with memory_delete.",
       inputSchema: c.rememberInput,
       outputSchema: c.memorySchema,
       annotations: write,
@@ -53,6 +54,39 @@ export function registerTools(server: McpServer, app: Application): void {
       annotations: read,
     },
     (input) => result(() => app.memories.search(input)),
+  );
+  server.registerTool(
+    "memory_get",
+    {
+      description:
+        "Read one project memory by ID, including its current version for update or deletion.",
+      inputSchema: c.memoryGetInput,
+      outputSchema: c.memorySchema,
+      annotations: read,
+    },
+    (input) => result(() => app.memories.get(input)),
+  );
+  server.registerTool(
+    "memory_update",
+    {
+      description:
+        "Correct a specific memory using its observed expectedVersion. Omitted fields stay unchanged; null clears importance or metadata. Old content is replaced in search. Reread after MEMORY_VERSION_CONFLICT.",
+      inputSchema: c.memoryUpdateInput,
+      outputSchema: c.memorySchema,
+      annotations: destructive,
+    },
+    (input) => result(() => app.memories.update(input)),
+  );
+  server.registerTool(
+    "memory_delete",
+    {
+      description:
+        "Permanently remove a specific obsolete or duplicate memory from storage and search using its observed expectedVersion. Reread after MEMORY_VERSION_CONFLICT. An activity event retains its ID, not its content.",
+      inputSchema: c.memoryDeleteInput,
+      outputSchema: c.memoryDeleted,
+      annotations: destructive,
+    },
+    (input) => result(() => app.memories.delete(input)),
   );
   server.registerTool(
     "claim_acquire",

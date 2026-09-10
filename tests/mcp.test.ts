@@ -34,7 +34,7 @@ async function call(
   return result.structuredContent;
 }
 
-test("advertises all eleven tools with structured input and output schemas", async () => {
+test("advertises all fourteen tools with structured input and output schemas", async () => {
   const result = await mcp.listTools();
   expect(result.tools.map((tool) => tool.name).sort()).toEqual([
     "activity_recent",
@@ -44,14 +44,25 @@ test("advertises all eleven tools with structured input and output schemas", asy
     "claims_list",
     "decision_record",
     "decisions_list",
+    "memory_delete",
+    "memory_get",
     "memory_remember",
     "memory_search",
+    "memory_update",
     "project_context_get",
     "project_context_update",
   ]);
   expect(
     result.tools.every((tool) => tool.inputSchema && tool.outputSchema),
   ).toBe(true);
+  for (const name of ["memory_update", "memory_delete"]) {
+    expect(
+      result.tools.find((tool) => tool.name === name)?.annotations,
+    ).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+  }
 });
 
 test("memory tools and HTTP read and write the same project state", async () => {
@@ -82,6 +93,104 @@ test("memory tools and HTTP read and write the same project state", async () => 
       await call("memory_search", { projectId: "other", query: "knowledge" }),
     ).items,
   ).toEqual([]);
+});
+
+test("memory get, update and delete share HTTP state, conflicts and isolation", async () => {
+  const http = f.client();
+  const original = c.memorySchema.parse(
+    await call("memory_remember", {
+      ...actor,
+      type: "fact",
+      content: "oldtoken",
+    }),
+  );
+  const updated = await http.updateMemory(original.id, {
+    expectedVersion: 1,
+    content: "correctedtoken",
+  });
+  const target = { ...actor, memoryId: original.id };
+  expect(
+    c.memorySchema.parse(
+      await call("memory_get", {
+        projectId: actor.projectId,
+        memoryId: original.id,
+      }),
+    ),
+  ).toEqual(updated);
+  for (const name of ["memory_update", "memory_delete"]) {
+    const args =
+      name === "memory_update"
+        ? { ...target, expectedVersion: 1, content: "stale" }
+        : { ...target, expectedVersion: 1 };
+    const conflict = await mcp.callTool({ name, arguments: args });
+    expect(conflict.isError).toBe(true);
+    expect(errorResponse.parse(conflict.structuredContent).error).toMatchObject(
+      {
+        code: "MEMORY_VERSION_CONFLICT",
+        details: { expectedVersion: 1, actualVersion: 2 },
+      },
+    );
+    const isolated = await mcp.callTool({
+      name,
+      arguments: { ...args, projectId: "other", expectedVersion: 2 },
+    });
+    expect(isolated.isError).toBe(true);
+    expect(errorResponse.parse(isolated.structuredContent).error.code).toBe(
+      "MEMORY_NOT_FOUND",
+    );
+  }
+  expect(
+    c.memoryDeleted.parse(
+      await call("memory_delete", {
+        ...target,
+        expectedVersion: updated.version,
+      }),
+    ),
+  ).toEqual({ deleted: true, memoryId: original.id });
+  await expect(http.getMemory(original.id)).rejects.toMatchObject({
+    code: "MEMORY_NOT_FOUND",
+  });
+  expect((await http.search({ query: "correctedtoken" })).items).toEqual([]);
+  const second = await http.remember({ type: "fact", content: "secondtoken" });
+  const edited = c.memorySchema.parse(
+    await call("memory_update", {
+      ...actor,
+      memoryId: second.id,
+      expectedVersion: 1,
+      content: "thirdtoken",
+      metadata: null,
+    }),
+  );
+  expect(await http.getMemory(second.id)).toEqual(edited);
+  expect((await http.search({ query: "secondtoken" })).items).toEqual([]);
+  await http.deleteMemory(second.id, edited.version);
+  const gone = await mcp.callTool({
+    name: "memory_get",
+    arguments: { projectId: actor.projectId, memoryId: second.id },
+  });
+  expect(gone.isError).toBe(true);
+  expect(errorResponse.parse(gone.structuredContent).error.code).toBe(
+    "MEMORY_NOT_FOUND",
+  );
+  expect(
+    c.activityResult.parse(
+      await call("activity_recent", { projectId: actor.projectId }),
+    ),
+  ).toEqual(await http.recentActivity());
+});
+
+test("MCP validates empty patches and missing mutation versions", async () => {
+  const memory = await f
+    .client()
+    .remember({ type: "fact", content: "unchanged" });
+  for (const [name, args] of [
+    ["memory_update", { ...actor, memoryId: memory.id, expectedVersion: 1 }],
+    ["memory_delete", { ...actor, memoryId: memory.id }],
+  ] satisfies [string, Record<string, unknown>][]) {
+    const result = await mcp.callTool({ name, arguments: args });
+    expect(result.isError).toBe(true);
+  }
+  expect(await f.client().getMemory(memory.id)).toEqual(memory);
 });
 
 test("all four claim actions and claim listing share HTTP concurrency semantics", async () => {

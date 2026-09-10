@@ -62,16 +62,15 @@ describe("memory and persistence", () => {
         .items,
     ).toEqual([]);
   });
-  test("database enforces append-only memories and activity", () => {
+  test("database enforces append-only activity", () => {
     f.app.memories.remember({
       ...actor,
       type: "fact",
       content: "Durable knowledge",
     });
-    expect(() => f.db.exec("UPDATE memories SET content = 'Changed'")).toThrow(
+    expect(() => f.db.exec("UPDATE activity SET message = 'Changed'")).toThrow(
       "append-only",
     );
-    expect(() => f.db.exec("DELETE FROM memories")).toThrow("append-only");
     expect(() => f.db.exec("DELETE FROM activity")).toThrow("append-only");
   });
   test("memory and FTS survive reopening; migrations are idempotent", async () => {
@@ -93,7 +92,7 @@ describe("memory and persistence", () => {
       ).toEqual([memory]);
       expect(
         reopened.query("SELECT * FROM schema_migrations").all(),
-      ).toHaveLength(1);
+      ).toHaveLength(2);
     } finally {
       reopened.close(true);
     }

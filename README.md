@@ -90,28 +90,48 @@ try {
 
 Other methods: `listClaims`, `renewClaim`, `getContext`, `updateContext`, `recordDecision`, `listDecisions`, `recentActivity`, and `health`. The client validates requests and responses, includes project/agent identity, and throws `MemoryClientError` for daemon errors. Requests have a 10-second timeout and are never automatically retried. Network failures do not prove that a mutation failed to commit.
 
+Correct an existing memory instead of appending a contradictory copy:
+
+```ts
+const entry = await memory.getMemory("mem_...");
+const corrected = await memory.updateMemory(entry.id, {
+  expectedVersion: entry.version,
+  content: "Talent search now uses cursor pagination.",
+});
+
+// If this entry later becomes obsolete or redundant, remove it:
+await memory.deleteMemory(corrected.id, corrected.version);
+```
+
+Search results also include `version`, so an agent can update or delete a result directly. On `MEMORY_VERSION_CONFLICT`, reread with `getMemory` and reconsider the change using the current content. Any trusted agent working in the same project may maintain its memories; `agentId` remains the original author and `updatedBy` identifies the latest editor.
+
 ## HTTP API
 
 Bodies use `Content-Type: application/json`. Responses contain camelCase properties, decoded JSON metadata, explicit nulls for missing optional record values, and Unix milliseconds for timestamps. Unknown input fields are rejected. Create endpoints return complete records; claim acquisition wraps the claim in `{ granted: true, claim }`.
 
-| Method and path                | Request                                                         |
-| ------------------------------ | --------------------------------------------------------------- |
-| `GET /health`                  | —                                                               |
-| `POST /memories`               | `{ projectId, agentId, type, content, importance?, metadata? }` |
-| `GET /memories/search`         | `?projectId=…&q=…&limit=10`                                     |
-| `POST /claims`                 | `{ projectId, agentId, resource, intent?, ttlSeconds? }`        |
-| `GET /claims`                  | `?projectId=…&resource=…`                                       |
-| `POST /claims/:id/renew`       | `{ agentId, ttlSeconds? }`                                      |
-| `DELETE /claims/:id`           | JSON body `{ agentId }`                                         |
-| `GET /projects/:id/context`    | —                                                               |
-| `PUT /projects/:id/context`    | `{ agentId, expectedVersion, content }`                         |
-| `POST /projects/:id/decisions` | `{ agentId, subject, decision, reasoning?, supersedesId? }`     |
-| `GET /projects/:id/decisions`  | `?status=active&limit=50`                                       |
-| `GET /projects/:id/activity`   | `?limit=50&since=…&agentId=…&type=…`                            |
+| Method and path                | Request                                                                            |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| `GET /health`                  | —                                                                                  |
+| `POST /memories`               | `{ projectId, agentId, type, content, importance?, metadata? }`                    |
+| `GET /memories/search`         | `?projectId=…&q=…&limit=10`                                                        |
+| `GET /memories/:id`            | `?projectId=…`                                                                     |
+| `PATCH /memories/:id`          | `{ projectId, agentId, expectedVersion, content?, type?, importance?, metadata? }` |
+| `DELETE /memories/:id`         | JSON body `{ projectId, agentId, expectedVersion }`                                |
+| `POST /claims`                 | `{ projectId, agentId, resource, intent?, ttlSeconds? }`                           |
+| `GET /claims`                  | `?projectId=…&resource=…`                                                          |
+| `POST /claims/:id/renew`       | `{ agentId, ttlSeconds? }`                                                         |
+| `DELETE /claims/:id`           | JSON body `{ agentId }`                                                            |
+| `GET /projects/:id/context`    | —                                                                                  |
+| `PUT /projects/:id/context`    | `{ agentId, expectedVersion, content }`                                            |
+| `POST /projects/:id/decisions` | `{ agentId, subject, decision, reasoning?, supersedesId? }`                        |
+| `GET /projects/:id/decisions`  | `?status=active&limit=50`                                                          |
+| `GET /projects/:id/activity`   | `?limit=50&since=…&agentId=…&type=…`                                               |
 
 List/search responses use `{ items: [...] }`. Search defaults to 10 results; decisions and activity default to 50. Limits range from 1 to 200. Claims list all active claims matching the requested scope. Project and agent IDs use letters, numbers, dots, underscores and hyphens, up to 128 characters, starting with a letter or number. No project registration is required.
 
 Errors have `{ error: { code, message, details? } }`. Claim conflicts additionally return `{ granted: false, conflict: { claimId, agentId, resource, intent, expiresAt } }` with HTTP 409. Canonical codes and DTO schemas live in `src/domain/`.
+
+Memory patches require at least one editable field. Omitted fields remain unchanged; `null` clears `importance` or `metadata`. Metadata is replaced as a whole. Both patch and delete require a positive `expectedVersion`: a stale version returns HTTP 409 `MEMORY_VERSION_CONFLICT`, while an absent memory or wrong project returns HTTP 404 `MEMORY_NOT_FOUND`. Delete returns `{ deleted: true, memoryId }`.
 
 ## MCP
 
@@ -143,12 +163,13 @@ Tools:
 
 ```text
 memory_remember          memory_search
+memory_get               memory_update           memory_delete
 claim_acquire            claim_release           claim_renew
 claims_list              project_context_get     project_context_update
 decision_record          decisions_list          activity_recent
 ```
 
-Tool input schemas mirror the HTTP contracts: `query` replaces HTTP's `q`, route IDs become `projectId` or `claimId`, and filters are typed properties. Domain failures carry `isError: true` and the same structured error codes as HTTP. The MCP SDK handles malformed protocol messages and schema-invalid tool calls. Resources return JSON views of the same services:
+Tool input schemas mirror the HTTP contracts: `query` replaces HTTP's `q`, route IDs become `projectId`, `memoryId` or `claimId`, and filters are typed properties. Domain failures carry `isError: true` and the same structured error codes as HTTP. The MCP SDK handles malformed protocol messages and schema-invalid tool calls. Resources return JSON views of the same services:
 
 ```text
 memory://projects/{projectId}/context
@@ -163,14 +184,14 @@ Multiple hosts must connect to the HTTP endpoint of that daemon. Launching a sep
 
 ## Domain guarantees
 
-- **Memories:** append-only, including database enforcement. FTS5 indexes inserts in the same transaction. Plain-word search requires all words, ignores punctuation, and is always project scoped. Ranking is internal and never leaks an FTS query language into the API.
+- **Memories:** versioned, editable and deletable within a project. Creation starts at version 1; updates preserve the ID, original author and creation time, increment the version, and record the editor and update time. Updates and deletes use an immediate transaction and a version-conditional write. FTS5 insert/update/delete triggers keep search synchronized in that transaction; old content stops matching immediately. Plain-word search requires all words, ignores punctuation, and is always project scoped. Ranking is internal and never leaks an FTS query language into the API.
 - **Claims:** unique `(projectId, resource)` plus an immediate transaction gives one winner. Expiration is `expiresAt <= now`. Acquisition, claim listing and activity reads lazily remove expired claims and record expiration once. No worker or timer is required. Only the declared owner may renew or release. Renewal extends from the current time without shortening an existing lease. Expired leases cannot be revived; after cleanup their IDs return `CLAIM_NOT_FOUND`.
 - **Resources:** `kind:name`; the kind is lowercased. File/directory paths normalize separators, repeated slashes, `.` and internal `..`, and reject absolute or escaping paths. Path case and named-resource case are preserved. Claims match exact normalized strings; directory/file hierarchy and filesystem symlinks are not resolved.
 - **Context:** read before changing. A missing context returns `PROJECT_NOT_FOUND`; initialize with `expectedVersion: 0` to create version 1. Existing updates increment only when the expected version matches. A conflict includes `actualVersion`; reconcile after rereading.
 - **Decisions:** append new decisions and explicitly supersede an active predecessor in the same project. A predecessor can have only one successor. A stale attempt returns `DECISION_CONFLICT`. Status changes, the new decision and both events commit together.
 - **Activity:** append-only. Every successful mutation writes its semantic event in the same transaction. Newest first, with insertion order breaking timestamp ties. `since` is inclusive; deduplicate by event ID when polling. This is a bounded recent feed, not a complete replay/pagination protocol. Expiration events identify the original lease owner.
 
-Memories, context, decisions and activity persist indefinitely in v1. Agent IDs are self-reported identities, not authentication. The daemon accepts loopback access, validates Host/Origin and inputs, uses parameterized SQL, and exposes neither SQL nor filesystem access. There are no accounts, agent scheduling, background workers, embeddings, cloud services or web UI.
+Memories persist until explicitly deleted; context, decisions and activity persist indefinitely. Memory updates replace content in place and deletion removes the record and its search entry; there is no memory revision archive or undo API. `memory.updated` and `memory.deleted` activity records retain IDs, versions and actors, without copying the removed content. Existing memories are preserved during migration and begin at version 1. Agent IDs are self-reported identities, not authentication. The daemon accepts loopback access, validates Host/Origin and inputs, uses parameterized SQL, and exposes neither SQL nor filesystem access. There are no accounts, agent scheduling, background workers, embeddings, cloud services or web UI.
 
 ## Implementation
 
@@ -184,4 +205,4 @@ The tests cover domain transitions, transaction rollback, HTTP boundaries, all M
 
 Reusable agent instructions: [docs/agent-instructions.md](docs/agent-instructions.md).
 
-Implementation references: [Bun SQLite](https://bun.com/docs/runtime/sqlite), [SQLite exclusive WAL](https://www.sqlite.org/walformat.html), [MCP web-standard serving](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/serving/web-standard.md), [MCP stdio serving](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/serving/stdio.md), [MCP protocol versions](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/protocol-versions.md).
+Implementation references: [Bun SQLite](https://bun.com/docs/runtime/sqlite), [SQLite FTS5 synchronization](https://www.sqlite.org/fts5.html#external_content_tables), [SQLite exclusive WAL](https://www.sqlite.org/walformat.html), [MCP web-standard serving](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/serving/web-standard.md), [MCP stdio serving](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/serving/stdio.md), [MCP protocol versions](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/protocol-versions.md).

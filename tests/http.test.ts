@@ -14,7 +14,7 @@ test("health reports database availability and package version", async () => {
   expect(await f.client().health()).toEqual({
     status: "ok",
     database: "ok",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 });
 

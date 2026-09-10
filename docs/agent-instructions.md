@@ -14,6 +14,8 @@ During work:
 
 - Use `memory_remember` for reusable findings, constraints, facts, preferences and results. Include useful file or feature metadata. Do not record every thought or file you opened.
 - Verify retrieved knowledge when the repository may have changed; durable memories can become stale.
+- Correct an existing memory with `memory_update({ projectId, agentId, memoryId, expectedVersion, content })` instead of appending a contradictory copy. Use its `version` from search or `memory_get`; omitted fields are preserved, and `null` clears optional importance or metadata. Metadata is replaced as a whole.
+- Remove demonstrably obsolete or duplicate entries with `memory_delete({ projectId, agentId, memoryId, expectedVersion })`. Retain useful knowledge when consolidating duplicates. Deletion removes the record from search; it has no undo API. On `MEMORY_VERSION_CONFLICT`, call `memory_get`, reconsider the latest content, then retry only if the change is still appropriate. Do not merely substitute a newer version number.
 - Use `decision_record` for architectural and product decisions. Include reasoning. When changing a decision, set `supersedesId` to the active predecessor; preserve its history.
 - Renew owned claims with `claim_renew` well before expiry, for example halfway through the TTL. After expiry or uncertain renewal, stop conflicting modifications and acquire a new lease before continuing.
 - For context updates, send the version you read as `expectedVersion`. On `CONTEXT_VERSION_CONFLICT`, reread and reconcile before retrying. Never blindly overwrite with a new version number.
