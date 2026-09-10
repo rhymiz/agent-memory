@@ -2,10 +2,12 @@ import type { Database } from "bun:sqlite";
 import { z } from "zod";
 import initial from "./migrations/001_initial.sql" with { type: "text" };
 import memoryMutations from "./migrations/002_memory_mutations.sql" with { type: "text" };
+import embeddings from "./migrations/003_embeddings.sql" with { type: "text" };
 
 const migrations = [
   { version: 1, sql: initial },
   { version: 2, sql: memoryMutations },
+  { version: 3, sql: embeddings },
 ];
 
 export function migrate(db: Database): void {

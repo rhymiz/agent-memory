@@ -12,10 +12,12 @@ import { DecisionService } from "./services/decision-service";
 import { MemoryService } from "./services/memory-service";
 import type { ActivityInput } from "./domain/contracts";
 import packageInfo from "../package.json";
+import type { EmbeddingModel } from "./domain/embedding";
 
 export function createApplication(
   db: Database,
   policy: ClaimPolicy,
+  model: EmbeddingModel,
   now: Clock = Date.now,
 ) {
   const store = new SqliteStore(db);
@@ -36,6 +38,7 @@ export function createApplication(
       store,
       activity,
       now,
+      model,
     ),
     claims,
     context: new ContextService(

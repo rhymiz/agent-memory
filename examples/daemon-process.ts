@@ -5,18 +5,27 @@ const startedSchema = z.object({
   url: z.url(),
 });
 
-export async function startDaemon(dbPath: string) {
+export async function startDaemon(
+  dbPath: string,
+  options: {
+    command?: string[];
+    env?: Record<string, string | undefined>;
+    cwd?: string;
+  } = {},
+) {
   const child = Bun.spawn(
-    [process.execPath, `${import.meta.dir}/../src/index.ts`],
+    options.command ?? [process.execPath, `${import.meta.dir}/../src/index.ts`],
     {
       env: {
         ...process.env,
+        ...options.env,
         AGENT_MEMORY_DB: dbPath,
         AGENT_MEMORY_HOST: "127.0.0.1",
         AGENT_MEMORY_PORT: "0",
         AGENT_MEMORY_DEFAULT_CLAIM_TTL: "300",
         AGENT_MEMORY_MAX_CLAIM_TTL: "3600",
       },
+      cwd: options.cwd,
       stdout: "pipe",
       stderr: "pipe",
     },

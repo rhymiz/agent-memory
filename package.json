@@ -1,6 +1,6 @@
 {
   "name": "agent-memory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,16 +12,20 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "check": "bun run format:check && bun run typecheck && bun test",
-    "format": "prettier --write src tests examples README.md docs package.json tsconfig.json",
-    "format:check": "prettier --check src tests examples README.md docs package.json tsconfig.json",
+    "format": "prettier --write src tests examples scripts README.md docs package.json tsconfig.json",
+    "format:check": "prettier --check src tests examples scripts README.md docs package.json tsconfig.json",
     "demo": "bun run examples/two-agents.ts",
-    "build": "bun build --compile ./src/index.ts --outfile dist/memd"
+    "build": "bun run scripts/build.ts",
+    "model:download": "bun run scripts/download-model.ts",
+    "verify:binary": "bun run scripts/verify-binary.ts"
   },
   "engines": {
     "bun": ">=1.4.2"
   },
   "dependencies": {
+    "@huggingface/tokenizers": "0.2.0",
     "@modelcontextprotocol/server": "2.0.0",
+    "onnxruntime-node": "1.29.0",
     "zod": "4.6.1"
   },
   "devDependencies": {

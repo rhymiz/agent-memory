@@ -3,6 +3,7 @@ import { AppError, type ErrorCode } from "../src/domain/errors";
 import { openDatabase } from "../src/db/database";
 import { createApplication } from "../src/application";
 import { readConfig } from "../src/config";
+import { readRuntimeDirectory } from "../src/embeddings/assets";
 import { fixture, type Fixture } from "./helpers";
 
 let f: Fixture;
@@ -25,8 +26,8 @@ function expectCode(action: () => unknown, code: ErrorCode): void {
 }
 
 describe("memory and persistence", () => {
-  test("inserts searchable memory with parsed metadata and project isolation", () => {
-    const memory = f.app.memories.remember({
+  test("inserts searchable memory with parsed metadata and project isolation", async () => {
+    const memory = await f.app.memories.remember({
       ...actor,
       type: "observation",
       content: "Search pagination uses cursors",
@@ -35,35 +36,47 @@ describe("memory and persistence", () => {
     });
     expect(memory.id).toMatch(/^mem_[0-9a-f-]{36}$/);
     expect(
-      f.app.memories.search({
-        projectId: actor.projectId,
-        query: "pagination search",
-      }).items,
+      (
+        await f.app.memories.search({
+          projectId: actor.projectId,
+          query: "pagination search",
+        })
+      ).items,
     ).toEqual([memory]);
     expect(
-      f.app.memories.search({ projectId: "another", query: "pagination" })
-        .items,
+      (
+        await f.app.memories.search({
+          projectId: "another",
+          query: "pagination",
+        })
+      ).items,
     ).toEqual([]);
   });
-  test("treats query punctuation as data, with no FTS syntax errors", () => {
-    f.app.memories.remember({
+  test("treats query punctuation as data, with no FTS syntax errors", async () => {
+    await f.app.memories.remember({
       ...actor,
       type: "fact",
       content: "Search cursors",
     });
     expect(
-      f.app.memories.search({
-        projectId: actor.projectId,
-        query: '"search" (cursors):*',
-      }).items,
+      (
+        await f.app.memories.search({
+          projectId: actor.projectId,
+          query: '"search" (cursors):*',
+        })
+      ).items,
     ).toHaveLength(1);
     expect(
-      f.app.memories.search({ projectId: actor.projectId, query: '"(*):' })
-        .items,
+      (
+        await f.app.memories.search({
+          projectId: actor.projectId,
+          query: '"(*):',
+        })
+      ).items,
     ).toEqual([]);
   });
-  test("database enforces append-only activity", () => {
-    f.app.memories.remember({
+  test("database enforces append-only activity", async () => {
+    await f.app.memories.remember({
       ...actor,
       type: "fact",
       content: "Durable knowledge",
@@ -82,35 +95,47 @@ describe("memory and persistence", () => {
     f.db.close(true);
     const reopened = openDatabase(f.dbPath);
     try {
-      const app = createApplication(reopened, {
-        defaultTtlSeconds: 300,
-        maxTtlSeconds: 3600,
-      });
+      const app = createApplication(
+        reopened,
+        {
+          defaultTtlSeconds: 300,
+          maxTtlSeconds: 3600,
+        },
+        f.model,
+      );
       expect(
-        app.memories.search({ projectId: actor.projectId, query: "restart" })
-          .items,
+        (
+          await app.memories.search({
+            projectId: actor.projectId,
+            query: "restart",
+          })
+        ).items,
       ).toEqual([memory]);
       expect(
         reopened.query("SELECT * FROM schema_migrations").all(),
-      ).toHaveLength(2);
+      ).toHaveLength(3);
     } finally {
       reopened.close(true);
     }
   });
-  test("memory, FTS and activity roll back together", () => {
+  test("memory, FTS and activity roll back together", async () => {
     f.db.exec(
       "CREATE TRIGGER fail_activity BEFORE INSERT ON activity BEGIN SELECT RAISE(ABORT, 'event failure'); END",
     );
-    expect(() =>
+    await expect(
       f.app.memories.remember({
         ...actor,
         type: "fact",
         content: "Atomic memory",
       }),
-    ).toThrow("event failure");
+    ).rejects.toThrow("event failure");
     expect(
-      f.app.memories.search({ projectId: actor.projectId, query: "Atomic" })
-        .items,
+      (
+        await f.app.memories.search({
+          projectId: actor.projectId,
+          query: "Atomic",
+        })
+      ).items,
     ).toEqual([]);
     expect(f.db.query("SELECT * FROM memories").all()).toHaveLength(0);
   });
@@ -401,11 +426,15 @@ describe("decisions", () => {
 });
 
 describe("activity and configuration", () => {
-  test("events are newest first with deterministic insertion order for equal timestamps", () => {
-    f.app.memories.remember({ ...actor, type: "fact", content: "Knowledge" });
+  test("events are newest first with deterministic insertion order for equal timestamps", async () => {
+    await f.app.memories.remember({
+      ...actor,
+      type: "fact",
+      content: "Knowledge",
+    });
     f.app.claims.acquire(claimInput);
     f.app.context.update({ ...actor, expectedVersion: 0, content: "Context" });
-    f.app.memories.remember({
+    await f.app.memories.remember({
       ...actor,
       projectId: "another",
       type: "fact",
@@ -432,6 +461,15 @@ describe("activity and configuration", () => {
   test("configuration defaults are local and invalid policies fail at startup", () => {
     expect(readConfig({}).host).toBe("127.0.0.1");
     expect(readConfig({}).dbPath).toEndWith("/.agent-memory/memory.sqlite");
+    expect(readRuntimeDirectory({})).toEndWith("/.agent-memory/runtime");
+    expect(
+      readRuntimeDirectory({
+        AGENT_MEMORY_RUNTIME_DIR: "~/.agent-memory/runtime",
+      }),
+    ).toBe(readRuntimeDirectory({}));
+    expect(() =>
+      readRuntimeDirectory({ AGENT_MEMORY_RUNTIME_DIR: " " }),
+    ).toThrow();
     expect(() => readConfig({ AGENT_MEMORY_HOST: "0.0.0.0" })).toThrow();
     expect(() =>
       readConfig({

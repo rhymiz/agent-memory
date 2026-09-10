@@ -148,9 +148,9 @@ test("deletion removes content and FTS entries and records the acting agent with
   );
 });
 
-test("update and deletion roll back content, version and FTS when activity insertion fails", () => {
+test("update and deletion roll back content, version and FTS when activity insertion fails", async () => {
   const actor = { projectId: "test-project", agentId: "agent-a" };
-  const memory = f.app.memories.remember({
+  const memory = await f.app.memories.remember({
     ...actor,
     type: "fact",
     content: "beforetoken",
@@ -163,16 +163,16 @@ test("update and deletion roll back content, version and FTS when activity inser
     memoryId: memory.id,
     expectedVersion: memory.version,
   };
-  expect(() =>
+  await expect(
     f.app.memories.update({ ...target, content: "aftertoken" }),
-  ).toThrow("event failure");
+  ).rejects.toThrow("event failure");
   expect(() => f.app.memories.delete(target)).toThrow("event failure");
   expect(f.app.memories.get(target)).toEqual(memory);
   expect(
-    f.app.memories.search({ ...actor, query: "beforetoken" }).items,
+    (await f.app.memories.search({ ...actor, query: "beforetoken" })).items,
   ).toEqual([memory]);
   expect(
-    f.app.memories.search({ ...actor, query: "aftertoken" }).items,
+    (await f.app.memories.search({ ...actor, query: "aftertoken" })).items,
   ).toEqual([]);
   expect(f.app.activity.recent(actor).items).toHaveLength(1);
   f.db.exec(
@@ -276,7 +276,7 @@ test("HTTP validates memory mutations and rejects path-ID overrides", async () =
   expect(await f.client().getMemory(memory.id)).toEqual(memory);
 });
 
-test("migration preserves existing memories and makes their FTS entries editable and deletable", () => {
+test("migration preserves existing memories and makes their FTS entries editable and deletable", async () => {
   const db = new Database(join(f.directory, "v1.sqlite"), {
     create: true,
     strict: true,
@@ -303,6 +303,7 @@ test("migration preserves existing memories and makes their FTS entries editable
     const app = createApplication(
       db,
       { defaultTtlSeconds: 300, maxTtlSeconds: 3600 },
+      f.model,
       () => 2000,
     );
     const target = { projectId: "test-project", memoryId: "mem_original" };
@@ -314,19 +315,27 @@ test("migration preserves existing memories and makes their FTS entries editable
       updatedAt: 1000,
       metadata: { source: "existing" },
     });
-    const updated = app.memories.update({
+    const updated = await app.memories.update({
       ...target,
       agentId: "editor",
       expectedVersion: 1,
       content: "newtoken",
     });
     expect(
-      app.memories.search({ projectId: target.projectId, query: "oldtoken" })
-        .items,
+      (
+        await app.memories.search({
+          projectId: target.projectId,
+          query: "oldtoken",
+        })
+      ).items,
     ).toEqual([]);
     expect(
-      app.memories.search({ projectId: target.projectId, query: "newtoken" })
-        .items,
+      (
+        await app.memories.search({
+          projectId: target.projectId,
+          query: "newtoken",
+        })
+      ).items,
     ).toEqual([updated]);
     app.memories.delete({
       ...target,
@@ -334,8 +343,12 @@ test("migration preserves existing memories and makes their FTS entries editable
       expectedVersion: updated.version,
     });
     expect(
-      app.memories.search({ projectId: target.projectId, query: "newtoken" })
-        .items,
+      (
+        await app.memories.search({
+          projectId: target.projectId,
+          query: "newtoken",
+        })
+      ).items,
     ).toEqual([]);
     db.exec(
       "INSERT INTO memories_fts(memories_fts, rank) VALUES ('integrity-check', 1)",

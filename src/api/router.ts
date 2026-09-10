@@ -83,15 +83,15 @@ export function createRouter(
       path: /^\/memories$/,
       handle: async (request) =>
         Response.json(
-          app.memories.remember(await body(request, c.rememberInput)),
+          await app.memories.remember(await body(request, c.rememberInput)),
           { status: 201 },
         ),
     },
     {
       method: "GET",
       path: /^\/memories\/search$/,
-      handle: (_, url) =>
-        Response.json(app.memories.search(query(url, c.searchInput))),
+      handle: async (_, url) =>
+        Response.json(await app.memories.search(query(url, c.searchInput))),
     },
     {
       method: "GET",
@@ -105,7 +105,7 @@ export function createRouter(
       handle: async (request, _, params) => {
         const input = await body(request, c.memoryUpdateBody);
         return Response.json(
-          app.memories.update(
+          await app.memories.update(
             parseInput(c.memoryUpdateInput, { ...input, ...params }),
           ),
         );

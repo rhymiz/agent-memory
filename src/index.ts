@@ -7,12 +7,13 @@ import { startHttpServer } from "./api/server";
 import { readConfig } from "./config";
 import { openDatabase } from "./db/database";
 import { createMcpServer } from "./mcp/server";
+import { LocalEmbeddingModel } from "./embeddings/model";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.includes("--help")) {
     console.log(
-      "Usage: bun run src/index.ts [--stdio]\nRuns local REST and MCP HTTP interfaces. --stdio also connects one parent MCP client.\nConfigure with AGENT_MEMORY_HOST, AGENT_MEMORY_PORT, AGENT_MEMORY_DB, AGENT_MEMORY_DEFAULT_CLAIM_TTL, AGENT_MEMORY_MAX_CLAIM_TTL.",
+      "Usage: memd [--stdio]\nRuns local REST and MCP HTTP interfaces with bundled offline semantic search. --stdio also connects one parent MCP client.\nConfigure with AGENT_MEMORY_HOST, AGENT_MEMORY_PORT, AGENT_MEMORY_DB, AGENT_MEMORY_RUNTIME_DIR, AGENT_MEMORY_DEFAULT_CLAIM_TTL, AGENT_MEMORY_MAX_CLAIM_TTL.",
     );
     return;
   }
@@ -20,11 +21,25 @@ async function main(): Promise<void> {
     throw new Error("Unknown argument. Use --help for usage.");
   const config = readConfig();
   const db = openDatabase(config.dbPath);
-  const app = createApplication(db, config);
+  let model: LocalEmbeddingModel | undefined;
   let http: ReturnType<typeof startHttpServer>;
+  let app: ReturnType<typeof createApplication>;
   try {
+    console.error(JSON.stringify({ level: "info", event: "search.loading" }));
+    model = await LocalEmbeddingModel.load();
+    app = createApplication(db, config, model);
+    const indexed = await app.memories.reindex();
+    console.error(
+      JSON.stringify({
+        level: "info",
+        event: "search.ready",
+        model: model.id,
+        indexed,
+      }),
+    );
     http = startHttpServer(app, config);
   } catch (error) {
+    await model?.close();
     db.close(true);
     throw error;
   }
@@ -33,8 +48,10 @@ async function main(): Promise<void> {
   async function shutdown(): Promise<void> {
     if (stopping) return;
     stopping = true;
-    await http.stop(true);
+    await http.stop();
     await stdio?.close();
+    await app.memories.drain();
+    await model?.close();
     db.close(true);
     console.error(JSON.stringify({ level: "info", event: "daemon.stopped" }));
   }

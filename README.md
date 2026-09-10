@@ -8,19 +8,77 @@ Requires Bun 1.4.2 or later.
 
 ```sh
 bun install --frozen-lockfile
+bun run model:download # One build/setup download; inference is fully offline
 bun start
 ```
 
-REST listens at `http://127.0.0.1:8787`; MCP listens at `http://127.0.0.1:8787/mcp`. The database defaults to `~/.agent-memory/memory.sqlite`. Startup applies bundled migrations automatically. Logs are JSON lines on stderr.
+REST listens at `http://127.0.0.1:8787`; MCP listens at `http://127.0.0.1:8787/mcp`. The database defaults to `~/.agent-memory/memory.sqlite`. Startup applies bundled migrations and indexes existing memories before accepting requests. Logs are JSON lines on stderr.
 
 ```sh
 curl http://127.0.0.1:8787/health
 bun run check   # TypeScript and all integration tests
 bun run demo    # Temporary daemon plus two independent agent processes
-bun run build   # Standalone executable: dist/memd
+bun run build   # Standalone executable with model: dist/memd
+bun run verify:binary # macOS: fresh cache, external network and source access denied
 ```
 
 The demo verifies shared observations, activity visibility, claim conflict and handoff, and context version 3 → 4 with a stale-write rejection. It cleans up its temporary database and processes.
+
+## Local semantic search
+
+`memory_search` and `MemoryClient.search()` combine exact terms with semantic
+similarity. Existing calls automatically use hybrid retrieval; no new tool,
+API key, inference server, or vector database is needed. For example, a query
+like “Can visitors view company pages without signing in?” can find a memory
+saying “Public organization profiles must remain accessible without authentication.”
+Include exact file names or identifiers when they matter, and use a small `limit`.
+
+The pinned [EmbeddingGemma 300M ONNX model](https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX)
+runs locally on CPU using ONNX Runtime and Hugging Face's tokenizer. The q8
+weights use 768-dimensional normalized embeddings. Paragraphs are split into
+overlapping windows of at most 384 tokens with 48-token overlap; small paragraphs
+are grouped, and identical chunks are indexed once. All content is covered,
+including content beyond the model's 2,048-token context window. Only memory
+content is embedded; metadata stays structured.
+
+SQLite stores versioned chunk vectors with each memory. Search scans the current
+project's vectors, takes the best chunk per memory, and combines semantic and
+FTS5 ranks using reciprocal rank fusion. A cosine floor of 0.3 filters weak
+semantic candidates; this is a retrieval heuristic, not a confidence probability.
+FTS5 still finds exact terms regardless of that floor. Results are unique memory
+records, defaulting to 10 and capped at 200. No automatic memory dump is added to
+agent context. This exact scan suits a small local corpus; cost grows with the
+project's indexed chunks.
+
+Creating or correcting a memory completes indexing before returning success.
+Deletes remove vectors in the same transaction. Inference or transaction failure
+leaves the previous memory and indexes intact. Startup backfills missing or
+outdated embeddings in resumable batches without changing memory versions or
+creating duplicate activity. Changing the pinned model or chunking contract
+requires a new model identity and automatically rebuilds the index.
+
+### Standalone executable
+
+`bun run build` fetches missing build assets at a pinned revision, verifies their
+SHA-256 checksums, and embeds the weights, tokenizer, native CPU runtime, and
+[distribution notices](licenses/README.md) into `dist/memd`. The resulting macOS
+ARM64 executable is approximately 445 MB. It needs neither Bun nor `node_modules`
+on the destination machine. Build on the target OS and architecture; macOS ARM64
+is verified here. Cross-compiling native inference assets is not supported by
+this build script.
+
+Native ONNX loading requires physical files. On first launch the executable
+extracts its embedded assets into a versioned runtime directory (roughly another
+380 MB), verifies them on later launches, and repairs damaged assets from the
+binary. It performs **no runtime downloads**. The daemon still runs as one Bun
+process; no background inference process or worker is introduced. Only build/setup
+requires network access. Missing source-development assets cause startup to fail
+with instructions to run `bun run model:download`.
+
+The macOS packaging check launches a copied executable outside this checkout with
+a fresh cache, denies reads from the source repository and all external network
+connections, and exercises HTTP/MCP retrieval, restart, cache repair, correction,
+and deletion. `bun run check` also covers real model inference and long memories.
 
 ## Configuration
 
@@ -28,6 +86,7 @@ The demo verifies shared observations, activity visibility, claim conflict and h
 | -------------------------------- | ------------------------------- |
 | `AGENT_MEMORY_HOST`              | `127.0.0.1`                     |
 | `AGENT_MEMORY_PORT`              | `8787`                          |
+| `AGENT_MEMORY_RUNTIME_DIR`       | `~/.agent-memory/runtime`       |
 | `AGENT_MEMORY_DB`                | `~/.agent-memory/memory.sqlite` |
 | `AGENT_MEMORY_DEFAULT_CLAIM_TTL` | `300` seconds                   |
 | `AGENT_MEMORY_MAX_CLAIM_TTL`     | `3600` seconds                  |
@@ -88,7 +147,7 @@ try {
 }
 ```
 
-Other methods: `listClaims`, `renewClaim`, `getContext`, `updateContext`, `recordDecision`, `listDecisions`, `recentActivity`, and `health`. The client validates requests and responses, includes project/agent identity, and throws `MemoryClientError` for daemon errors. Requests have a 10-second timeout and are never automatically retried. Network failures do not prove that a mutation failed to commit.
+Other methods: `listClaims`, `renewClaim`, `getContext`, `updateContext`, `recordDecision`, `listDecisions`, `recentActivity`, and `health`. The client validates requests and responses, includes project/agent identity, and throws `MemoryClientError` for daemon errors. Requests have a 120-second timeout (configurable with `timeoutMs`) and are never automatically retried. Network failures do not prove that a mutation failed to commit.
 
 Correct an existing memory instead of appending a contradictory copy:
 
@@ -184,14 +243,14 @@ Multiple hosts must connect to the HTTP endpoint of that daemon. Launching a sep
 
 ## Domain guarantees
 
-- **Memories:** versioned, editable and deletable within a project. Creation starts at version 1; updates preserve the ID, original author and creation time, increment the version, and record the editor and update time. Updates and deletes use an immediate transaction and a version-conditional write. FTS5 insert/update/delete triggers keep search synchronized in that transaction; old content stops matching immediately. Plain-word search requires all words, ignores punctuation, and is always project scoped. Ranking is internal and never leaks an FTS query language into the API.
+- **Memories:** versioned, editable and deletable within a project. Creation starts at version 1; updates preserve the ID, original author and creation time, increment the version, and record the editor and update time. Updates and deletes use an immediate transaction and a version-conditional write. FTS5 triggers and versioned embeddings keep both search indexes synchronized in that transaction. Embeddings are computed before taking the write transaction; a correction rechecks its version afterward. Search only sees current versions and is always project scoped. Ranking is internal and never exposes an FTS query language or vectors through the API.
 - **Claims:** unique `(projectId, resource)` plus an immediate transaction gives one winner. Expiration is `expiresAt <= now`. Acquisition, claim listing and activity reads lazily remove expired claims and record expiration once. No worker or timer is required. Only the declared owner may renew or release. Renewal extends from the current time without shortening an existing lease. Expired leases cannot be revived; after cleanup their IDs return `CLAIM_NOT_FOUND`.
 - **Resources:** `kind:name`; the kind is lowercased. File/directory paths normalize separators, repeated slashes, `.` and internal `..`, and reject absolute or escaping paths. Path case and named-resource case are preserved. Claims match exact normalized strings; directory/file hierarchy and filesystem symlinks are not resolved.
 - **Context:** read before changing. A missing context returns `PROJECT_NOT_FOUND`; initialize with `expectedVersion: 0` to create version 1. Existing updates increment only when the expected version matches. A conflict includes `actualVersion`; reconcile after rereading.
 - **Decisions:** append new decisions and explicitly supersede an active predecessor in the same project. A predecessor can have only one successor. A stale attempt returns `DECISION_CONFLICT`. Status changes, the new decision and both events commit together.
 - **Activity:** append-only. Every successful mutation writes its semantic event in the same transaction. Newest first, with insertion order breaking timestamp ties. `since` is inclusive; deduplicate by event ID when polling. This is a bounded recent feed, not a complete replay/pagination protocol. Expiration events identify the original lease owner.
 
-Memories persist until explicitly deleted; context, decisions and activity persist indefinitely. Memory updates replace content in place and deletion removes the record and its search entry; there is no memory revision archive or undo API. `memory.updated` and `memory.deleted` activity records retain IDs, versions and actors, without copying the removed content. Existing memories are preserved during migration and begin at version 1. Agent IDs are self-reported identities, not authentication. The daemon accepts loopback access, validates Host/Origin and inputs, uses parameterized SQL, and exposes neither SQL nor filesystem access. There are no accounts, agent scheduling, background workers, embeddings, cloud services or web UI.
+Memories persist until explicitly deleted; context, decisions and activity persist indefinitely. Memory updates replace content in place and deletion removes the record and its search entry; there is no memory revision archive or undo API. `memory.updated` and `memory.deleted` activity records retain IDs, versions and actors, without copying the removed content. Existing memories are preserved during migration and begin at version 1. Agent IDs are self-reported identities, not authentication. The daemon accepts loopback access, validates Host/Origin and inputs, uses parameterized SQL, and exposes neither SQL nor filesystem access. There are no accounts, agent scheduling, background workers, cloud services or web UI.
 
 ## Implementation
 

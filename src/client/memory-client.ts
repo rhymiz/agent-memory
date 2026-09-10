@@ -6,11 +6,13 @@ const optionsSchema = z.strictObject({
   baseUrl: z.url(),
   projectId: c.identifier,
   agentId: c.identifier,
+  timeoutMs: z.number().int().positive().optional(),
 });
 export interface MemoryClientOptions {
   baseUrl: string;
   projectId: string;
   agentId: string;
+  timeoutMs?: number;
 }
 
 export class MemoryClientError extends Error {
@@ -47,7 +49,7 @@ export class MemoryClient {
       headers:
         body === undefined ? undefined : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(this.options.timeoutMs ?? 120_000),
     });
     let data: unknown;
     try {

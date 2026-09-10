@@ -6,6 +6,8 @@ import {
   type SearchInput,
 } from "../domain/contracts";
 import { SqliteStore, storedMetadata } from "./sqlite-store";
+import { z } from "zod";
+import { normalized } from "../domain/embedding";
 
 export interface MemoryRepository {
   insert(memory: Memory): void;
@@ -13,6 +15,17 @@ export interface MemoryRepository {
   update(memory: Memory, expectedVersion: number): boolean;
   delete(input: MemoryDeleteInput): boolean;
   search(input: SearchInput): Memory[];
+  replaceEmbeddings(
+    memory: Memory,
+    modelId: string,
+    vectors: Float32Array[],
+  ): void;
+  embeddings(
+    projectId: string,
+    modelId: string,
+    dimensions: number,
+  ): { memory: Memory; vector: Float32Array }[];
+  unindexed(modelId: string, limit: number): Memory[];
 }
 const row = memorySchema.extend({ metadata: storedMetadata });
 const columns = `m.id, m.project_id AS projectId, m.agent_id AS agentId,
@@ -21,6 +34,57 @@ const columns = `m.id, m.project_id AS projectId, m.agent_id AS agentId,
 
 export class SqliteMemoryRepository implements MemoryRepository {
   constructor(private readonly store: SqliteStore) {}
+  replaceEmbeddings(
+    memory: Memory,
+    modelId: string,
+    vectors: Float32Array[],
+  ): void {
+    this.store.execute("DELETE FROM memory_embeddings WHERE memory_id = ?", [
+      memory.id,
+    ]);
+    for (const [index, vector] of vectors.entries()) {
+      this.store.execute(
+        "INSERT INTO memory_embeddings (memory_id, memory_version, model_id, chunk_index, vector) VALUES (?,?,?,?,?)",
+        [
+          memory.id,
+          memory.version,
+          modelId,
+          index,
+          new Uint8Array(vector.buffer, vector.byteOffset, vector.byteLength),
+        ],
+      );
+    }
+  }
+  embeddings(
+    projectId: string,
+    modelId: string,
+    dimensions: number,
+  ): { memory: Memory; vector: Float32Array }[] {
+    return this.store
+      .all(
+        row.extend({ vector: z.instanceof(Uint8Array) }),
+        `SELECT ${columns}, e.vector FROM memories m JOIN memory_embeddings e
+       ON m.id = e.memory_id AND m.version = e.memory_version
+       WHERE m.project_id = ? AND e.model_id = ? ORDER BY m.created_at DESC, m.id DESC, e.chunk_index`,
+        [projectId, modelId],
+      )
+      .map(({ vector, ...memory }) => ({
+        memory,
+        vector: normalized(
+          new Float32Array(Uint8Array.from(vector).buffer),
+          dimensions,
+        ),
+      }));
+  }
+  unindexed(modelId: string, limit: number): Memory[] {
+    return this.store.all(
+      row,
+      `SELECT ${columns} FROM memories m WHERE NOT EXISTS (
+      SELECT 1 FROM memory_embeddings e WHERE e.memory_id = m.id AND e.memory_version = m.version AND e.model_id = ?
+    ) ORDER BY m.id LIMIT ?`,
+      [modelId, limit],
+    );
+  }
   insert(memory: Memory): void {
     this.store.execute(
       "INSERT INTO memories (id,project_id,agent_id,type,content,importance,metadata,created_at,version,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",

@@ -3,9 +3,11 @@ import type { Application } from "../application";
 import * as c from "../domain/contracts";
 import { publicError } from "../domain/errors";
 
-function result(operation: () => Record<string, unknown>): CallToolResult {
+async function result(
+  operation: () => Record<string, unknown> | Promise<Record<string, unknown>>,
+): Promise<CallToolResult> {
   try {
-    const data = operation();
+    const data = await operation();
     return { content: [], structuredContent: data };
   } catch (error) {
     const failure = publicError(error);
@@ -48,7 +50,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "memory_search",
     {
       description:
-        "Search project knowledge using plain words. Results are project scoped.",
+        "Search project knowledge by meaning and exact terms using local hybrid retrieval. Use a natural-language question or task description; include identifiers when relevant. Results are project scoped and limited.",
       inputSchema: c.searchInput,
       outputSchema: c.memoriesResult,
       annotations: read,

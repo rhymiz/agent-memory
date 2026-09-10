@@ -6,7 +6,7 @@ Before significant project work:
 
 1. Read `project_context_get` for canonical context. If it has never been created, initialize agreed project context with `expectedVersion: 0`.
 2. Read `activity_recent` to understand other agents' recent work.
-3. Call `memory_search` with focused terms relevant to the task. Retrieve intentionally; do not dump every memory into your context.
+3. Call `memory_search` with a focused natural-language question or task description, plus exact identifiers when relevant, and a small `limit`. Search combines local semantic retrieval with exact terms. Retrieve intentionally; do not dump every memory into your context.
 4. Check `claims_list` for the resources you intend to modify.
 5. Call `claim_acquire` when concurrent modification would be unsafe. Listing is advisory; acquisition is the atomic ownership check. Do not start the conflicting work unless acquisition succeeds.
 

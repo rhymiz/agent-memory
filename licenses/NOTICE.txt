@@ -1,0 +1,7 @@
+Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms
+
+This distribution includes the ONNX Community q8 conversion of Google's
+EmbeddingGemma 300M model. The daemon does not modify those model files.
+The model and its use are subject to the restrictions in Section 3.2 of the
+Gemma Terms of Use, including the Gemma Prohibited Use Policy. Copies of both
+are included alongside this notice.

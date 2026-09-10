@@ -5,8 +5,29 @@ import { createApplication } from "../src/application";
 import { startHttpServer } from "../src/api/server";
 import { openDatabase } from "../src/db/database";
 import { MemoryClient } from "../src/client/memory-client";
+import { normalized, type EmbeddingModel } from "../src/domain/embedding";
 
-export function fixture() {
+// Deterministic injected model for service/transport tests. Real inference has its own tests.
+export class TestEmbeddingModel implements EmbeddingModel {
+  readonly id: string = "test-token-embedding-v1";
+  readonly dimensions = 1024;
+  async embedQuery(text: string): Promise<Float32Array> {
+    const vector = new Float32Array(this.dimensions);
+    for (const word of text.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? [text]) {
+      let hash = 2166136261;
+      for (const char of word)
+        hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+      const index = (hash >>> 0) % this.dimensions;
+      vector[index] = (vector[index] ?? 0) + 1;
+    }
+    return normalized(vector, this.dimensions);
+  }
+  async embedDocument(text: string): Promise<Float32Array[]> {
+    return [await this.embedQuery(text)];
+  }
+}
+
+export function fixture(model: EmbeddingModel = new TestEmbeddingModel()) {
   const directory = mkdtempSync(join(tmpdir(), "agent-memory-test-"));
   const dbPath = join(directory, "memory.sqlite");
   const db = openDatabase(dbPath);
@@ -14,6 +35,7 @@ export function fixture() {
   const app = createApplication(
     db,
     { defaultTtlSeconds: 300, maxTtlSeconds: 3600 },
+    model,
     () => time,
   );
   const http = startHttpServer(app, { host: "127.0.0.1", port: 0 });
@@ -22,6 +44,7 @@ export function fixture() {
     directory,
     dbPath,
     db,
+    model,
     app,
     http,
     baseUrl,
