@@ -1,0 +1,33 @@
+{
+  "name": "agent-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/client/memory-client.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run format:check && bun run typecheck && bun test",
+    "format": "prettier --write src tests examples README.md docs package.json tsconfig.json",
+    "format:check": "prettier --check src tests examples README.md docs package.json tsconfig.json",
+    "demo": "bun run examples/two-agents.ts",
+    "build": "bun build --compile ./src/index.ts --outfile dist/memd"
+  },
+  "engines": {
+    "bun": ">=1.4.2"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "4.6.1"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/bun": "1.4.2",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2"
+  }
+}

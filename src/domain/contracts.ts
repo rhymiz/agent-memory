@@ -1,0 +1,175 @@
+import { z } from "zod";
+
+export const identifier = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/);
+export const content = z
+  .string()
+  .min(1)
+  .max(100_000)
+  .refine((value) => value.trim().length > 0, "Content must not be blank.");
+export const metadata = z.record(z.string(), z.json());
+export const timestamp = z.number().int().nonnegative();
+export const limit = z.number().int().min(1).max(200);
+export const ttlSeconds = z.number().int().min(1).max(2_147_483_647);
+export const projectInput = z.strictObject({ projectId: identifier });
+export const actorInput = projectInput.extend({ agentId: identifier });
+export const memoryType = z.enum([
+  "fact",
+  "observation",
+  "decision",
+  "constraint",
+  "note",
+  "result",
+]);
+export const decisionStatus = z.enum(["active", "superseded"]);
+export const activityType = z.enum([
+  "memory.created",
+  "claim.acquired",
+  "claim.released",
+  "claim.renewed",
+  "claim.expired",
+  "context.updated",
+  "decision.created",
+  "decision.superseded",
+]);
+
+export const rememberInput = actorInput.extend({
+  type: memoryType,
+  content,
+  importance: z.number().min(0).max(1).optional(),
+  metadata: metadata.optional(),
+});
+export const searchInput = projectInput.extend({
+  query: z.string().trim().min(1).max(1000),
+  limit: limit.optional(),
+});
+export const acquireInput = actorInput.extend({
+  resource: z.string().trim().min(1).max(1024),
+  intent: z.string().trim().min(1).max(2000).optional(),
+  ttlSeconds: ttlSeconds.optional(),
+});
+export const releaseInput = z.strictObject({
+  claimId: identifier,
+  agentId: identifier,
+});
+export const renewInput = releaseInput.extend({
+  ttlSeconds: ttlSeconds.optional(),
+});
+export const claimsInput = projectInput.extend({
+  resource: z.string().trim().min(1).max(1024).optional(),
+});
+export const contextUpdateBody = z.strictObject({
+  agentId: identifier,
+  expectedVersion: z.number().int().nonnegative(),
+  content,
+});
+export const contextUpdateInput = projectInput.extend(contextUpdateBody.shape);
+export const decisionBody = z.strictObject({
+  agentId: identifier,
+  subject: z.string().trim().min(1).max(256),
+  decision: content,
+  reasoning: content.optional(),
+  supersedesId: identifier.optional(),
+});
+export const decisionInput = projectInput.extend(decisionBody.shape);
+export const decisionsInput = projectInput.extend({
+  status: decisionStatus.optional(),
+  limit: limit.optional(),
+});
+export const activityInput = projectInput.extend({
+  limit: limit.optional(),
+  since: timestamp.optional(),
+  agentId: identifier.optional(),
+  type: activityType.optional(),
+});
+
+export const memorySchema = z.strictObject({
+  id: identifier,
+  projectId: identifier,
+  agentId: identifier,
+  type: memoryType,
+  content,
+  importance: z.number().min(0).max(1).nullable(),
+  metadata: metadata.nullable(),
+  createdAt: timestamp,
+});
+export const claimSchema = z.strictObject({
+  id: identifier,
+  projectId: identifier,
+  agentId: identifier,
+  resource: z.string(),
+  intent: z.string().nullable(),
+  expiresAt: timestamp,
+  createdAt: timestamp,
+});
+export const contextSchema = z.strictObject({
+  projectId: identifier,
+  content,
+  version: z.number().int().positive(),
+  updatedBy: identifier,
+  updatedAt: timestamp,
+});
+export const decisionSchema = z.strictObject({
+  id: identifier,
+  projectId: identifier,
+  agentId: identifier,
+  subject: z.string(),
+  decision: content,
+  reasoning: z.string().nullable(),
+  status: decisionStatus,
+  supersedesId: identifier.nullable(),
+  createdAt: timestamp,
+});
+export const activitySchema = z.strictObject({
+  id: identifier,
+  projectId: identifier,
+  agentId: identifier,
+  type: activityType,
+  resource: z.string().nullable(),
+  message: z.string().nullable(),
+  metadata: metadata.nullable(),
+  createdAt: timestamp,
+});
+export const memoriesResult = z.strictObject({ items: z.array(memorySchema) });
+export const claimsResult = z.strictObject({ items: z.array(claimSchema) });
+export const decisionsResult = z.strictObject({
+  items: z.array(decisionSchema),
+});
+export const activityResult = z.strictObject({
+  items: z.array(activitySchema),
+});
+export const claimGranted = z.strictObject({
+  granted: z.literal(true),
+  claim: claimSchema,
+});
+export const claimReleased = z.strictObject({
+  released: z.literal(true),
+  claimId: identifier,
+});
+export const healthSchema = z.strictObject({
+  status: z.literal("ok"),
+  database: z.literal("ok"),
+  version: z.string(),
+});
+
+export type Memory = z.infer<typeof memorySchema>;
+export type Claim = z.infer<typeof claimSchema>;
+export type ProjectContext = z.infer<typeof contextSchema>;
+export type Decision = z.infer<typeof decisionSchema>;
+export type ActivityEvent = z.infer<typeof activitySchema>;
+export type Metadata = z.infer<typeof metadata>;
+export type RememberInput = z.infer<typeof rememberInput>;
+export type SearchInput = z.infer<typeof searchInput>;
+export type AcquireInput = z.infer<typeof acquireInput>;
+export type ReleaseInput = z.infer<typeof releaseInput>;
+export type RenewInput = z.infer<typeof renewInput>;
+export type ClaimsInput = z.infer<typeof claimsInput>;
+export type ProjectInput = z.infer<typeof projectInput>;
+export type ContextUpdateInput = z.infer<typeof contextUpdateInput>;
+export type DecisionInput = z.infer<typeof decisionInput>;
+export type DecisionsInput = z.infer<typeof decisionsInput>;
+export type ActivityInput = z.infer<typeof activityInput>;

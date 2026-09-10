@@ -1,0 +1,7 @@
+node_modules/
+dist/
+data/
+.agent-memory/
+*.sqlite*
+.env
+coverage/
