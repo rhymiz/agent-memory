@@ -15,7 +15,7 @@ import {
 } from "@modelcontextprotocol/client";
 import { startDaemon } from "../examples/daemon-process";
 import { MemoryClient } from "../src/client/memory-client";
-import { memoriesResult } from "../src/domain/contracts";
+import { claimsRenewed, memoriesResult } from "../src/domain/contracts";
 
 // macOS supplies an OS-enforced network policy. No inference/network mocks are used.
 if (process.platform !== "darwin")
@@ -66,7 +66,7 @@ try {
     agentId: "a",
   });
   const health = await client.health();
-  assert.equal(health.version, "0.3.0");
+  assert.equal(health.version, "0.4.0");
   const memory = await client.remember({
     type: "fact",
     content:
@@ -81,6 +81,32 @@ try {
   await mcp.connect(
     new StreamableHTTPClientTransport(new URL("/mcp", daemon.baseUrl)),
   );
+  assert.equal((await mcp.listTools()).tools.length, 15);
+  const defaultClaim = await client.claim({
+    resource: "feature:default-lease",
+  });
+  assert.equal(defaultClaim.expiresAt - defaultClaim.createdAt, 1_800_000);
+  const shortClaim = await client.claim({
+    resource: "feature:short-lease",
+    ttlSeconds: 300,
+  });
+  const claimIds = [defaultClaim.id, shortClaim.id];
+  const renewal = claimsRenewed.parse(
+    (
+      await mcp.callTool({
+        name: "claims_renew",
+        arguments: { projectId: "offline", agentId: "a", claimIds },
+      })
+    ).structuredContent,
+  );
+  assert.equal(renewal.claimCount, 2);
+  assert.ok(renewal.renewedCount > 0);
+  assert.equal(renewal.expiresAt - renewal.renewAfter, 900_000);
+  assert.deepEqual(await client.renewClaims(claimIds), {
+    ...renewal,
+    renewedCount: 0,
+  });
+  for (const claimId of claimIds) await client.releaseClaim(claimId);
   assert.deepEqual(
     memoriesResult.parse(
       (
@@ -133,7 +159,7 @@ try {
     [],
   );
   console.log(
-    "PASS: standalone binary, fresh cache, blocked external network/source access, HTTP/MCP semantic retrieval, restart, cache repair, update and delete",
+    "PASS: standalone binary, fresh cache, blocked external network/source access, HTTP/MCP semantic retrieval and batch renewal, 30-minute default leases, restart, cache repair, update and delete",
   );
 } finally {
   await mcp?.close();

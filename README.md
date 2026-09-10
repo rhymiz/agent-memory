@@ -88,7 +88,7 @@ and deletion. `bun run check` also covers real model inference and long memories
 | `AGENT_MEMORY_PORT`              | `8787`                          |
 | `AGENT_MEMORY_RUNTIME_DIR`       | `~/.agent-memory/runtime`       |
 | `AGENT_MEMORY_DB`                | `~/.agent-memory/memory.sqlite` |
-| `AGENT_MEMORY_DEFAULT_CLAIM_TTL` | `300` seconds                   |
+| `AGENT_MEMORY_DEFAULT_CLAIM_TTL` | `1800` seconds                  |
 | `AGENT_MEMORY_MAX_CLAIM_TTL`     | `3600` seconds                  |
 
 Only loopback hosts (`127.0.0.1`, `localhost`, `::1`) are accepted. Port `0` lets the OS select a free port, reported in the startup log. Relative database paths resolve against the daemon's working directory; `~/` is expanded.
@@ -123,10 +123,9 @@ const { items } = await memory.search({ query: "search pagination" });
 const claim = await memory.claim({
   resource: "file:src/services/search.ts",
   intent: "Implement cursor pagination",
-  ttlSeconds: 300,
 });
 try {
-  // Work here; renewClaim(claim.id) before the lease expires during longer work.
+  // Work here. Renew only when due, using renewClaims([...ids]) for multiple files.
 } finally {
   await memory.releaseClaim(claim.id);
 }
@@ -147,7 +146,7 @@ try {
 }
 ```
 
-Other methods: `listClaims`, `renewClaim`, `getContext`, `updateContext`, `recordDecision`, `listDecisions`, `recentActivity`, and `health`. The client validates requests and responses, includes project/agent identity, and throws `MemoryClientError` for daemon errors. Requests have a 120-second timeout (configurable with `timeoutMs`) and are never automatically retried. Network failures do not prove that a mutation failed to commit.
+Other methods: `listClaims`, `renewClaim`, `renewClaims`, `getContext`, `updateContext`, `recordDecision`, `listDecisions`, `recentActivity`, and `health`. The client validates requests and responses, includes project/agent identity, and throws `MemoryClientError` for daemon errors. Requests have a 120-second timeout (configurable with `timeoutMs`) and are never automatically retried. Network failures do not prove that a mutation failed to commit.
 
 Correct an existing memory instead of appending a contradictory copy:
 
@@ -178,6 +177,7 @@ Bodies use `Content-Type: application/json`. Responses contain camelCase propert
 | `DELETE /memories/:id`         | JSON body `{ projectId, agentId, expectedVersion }`                                |
 | `POST /claims`                 | `{ projectId, agentId, resource, intent?, ttlSeconds? }`                           |
 | `GET /claims`                  | `?projectId=…&resource=…`                                                          |
+| `POST /claims/renew`           | `{ projectId, agentId, claimIds, ttlSeconds? }`                                    |
 | `POST /claims/:id/renew`       | `{ agentId, ttlSeconds? }`                                                         |
 | `DELETE /claims/:id`           | JSON body `{ agentId }`                                                            |
 | `GET /projects/:id/context`    | —                                                                                  |
@@ -191,6 +191,49 @@ List/search responses use `{ items: [...] }`. Search defaults to 10 results; dec
 Errors have `{ error: { code, message, details? } }`. Claim conflicts additionally return `{ granted: false, conflict: { claimId, agentId, resource, intent, expiresAt } }` with HTTP 409. Canonical codes and DTO schemas live in `src/domain/`.
 
 Memory patches require at least one editable field. Omitted fields remain unchanged; `null` clears `importance` or `metadata`. Metadata is replaced as a whole. Both patch and delete require a positive `expectedVersion`: a stale version returns HTTP 409 `MEMORY_VERSION_CONFLICT`, while an absent memory or wrong project returns HTTP 404 `MEMORY_NOT_FOUND`. Delete returns `{ deleted: true, memoryId }`.
+
+## Claim renewal without per-file loops
+
+The daemon default is **30 minutes**, with a maximum of 60 minutes. Omit
+`ttlSeconds` to use the configured default; pass it only for a deliberate override.
+Claim only the files needed for the current phase of work, and release them promptly
+when finished. Claims still expire when an agent crashes; the daemon does not
+renew leases in the background.
+
+Keep the IDs returned by acquisition. At the earliest claim's initial midpoint
+(`createdAt + (expiresAt - createdAt) / 2`), renew the whole set in one call:
+
+```ts
+const renewal = await memory.renewClaims(ownedClaims.map((claim) => claim.id));
+// Schedule the next renewal using renewal.renewAfter (UTC Unix milliseconds).
+```
+
+MCP exposes the same operation as `claims_renew({ projectId, agentId, claimIds })`.
+It accepts 1–500 unique IDs and returns a compact summary:
+
+```json
+{
+  "claimCount": 122,
+  "renewedCount": 122,
+  "expiresAt": 1789092000000,
+  "renewAfter": 1789091100000
+}
+```
+
+`expiresAt` is the earliest expiry in the requested set, so every requested claim
+is valid until at least that time. Renew when the actual wall clock reaches
+`renewAfter`, not after each tool call. Early retries return `renewedCount: 0`
+and the same deadline without writing activity. When any requested claim is due,
+the batch extends the set without shortening longer leases. A successful batch
+emits one `claim.renewed` activity event with counts; individual renewal remains
+available for a single resource and follows the same timing policy.
+
+Renewal is all-or-nothing: any missing, expired, foreign-project or non-owned ID
+rejects the entire batch with the existing claim error code and failing `claimId`.
+Stop modifying any resource whose ownership was lost, reread claims, then reacquire
+or remove that ID from the current work set before retrying. A batch never revives
+expired claims or silently skips missing ones. Existing short leases can be
+extended using the new default while they are still active.
 
 ## MCP
 
@@ -224,7 +267,7 @@ Tools:
 memory_remember          memory_search
 memory_get               memory_update           memory_delete
 claim_acquire            claim_release           claim_renew
-claims_list              project_context_get     project_context_update
+claims_list              claims_renew            project_context_get     project_context_update
 decision_record          decisions_list          activity_recent
 ```
 
@@ -244,7 +287,7 @@ Multiple hosts must connect to the HTTP endpoint of that daemon. Launching a sep
 ## Domain guarantees
 
 - **Memories:** versioned, editable and deletable within a project. Creation starts at version 1; updates preserve the ID, original author and creation time, increment the version, and record the editor and update time. Updates and deletes use an immediate transaction and a version-conditional write. FTS5 triggers and versioned embeddings keep both search indexes synchronized in that transaction. Embeddings are computed before taking the write transaction; a correction rechecks its version afterward. Search only sees current versions and is always project scoped. Ranking is internal and never exposes an FTS query language or vectors through the API.
-- **Claims:** unique `(projectId, resource)` plus an immediate transaction gives one winner. Expiration is `expiresAt <= now`. Acquisition, claim listing and activity reads lazily remove expired claims and record expiration once. No worker or timer is required. Only the declared owner may renew or release. Renewal extends from the current time without shortening an existing lease. Expired leases cannot be revived; after cleanup their IDs return `CLAIM_NOT_FOUND`.
+- **Claims:** unique `(projectId, resource)` plus an immediate transaction gives one winner. Expiration is `expiresAt <= now`. Acquisition, claim listing and activity reads lazily remove expired claims and record expiration once. No worker or timer is required. Only the declared owner may renew or release. Renewal extends from the current time without shortening an existing lease, once half the requested TTL remains. Early calls leave expiry and activity unchanged. Batch renewal validates every requested claim before changing any expiry, and records one activity event for the batch. Expired leases cannot be revived; after cleanup their IDs return `CLAIM_NOT_FOUND`.
 - **Resources:** `kind:name`; the kind is lowercased. File/directory paths normalize separators, repeated slashes, `.` and internal `..`, and reject absolute or escaping paths. Path case and named-resource case are preserved. Claims match exact normalized strings; directory/file hierarchy and filesystem symlinks are not resolved.
 - **Context:** read before changing. A missing context returns `PROJECT_NOT_FOUND`; initialize with `expectedVersion: 0` to create version 1. Existing updates increment only when the expected version matches. A conflict includes `actualVersion`; reconcile after rereading.
 - **Decisions:** append new decisions and explicitly supersede an active predecessor in the same project. A predecessor can have only one successor. A stale attempt returns `DECISION_CONFLICT`. Status changes, the new decision and both events commit together.

@@ -84,6 +84,23 @@ export const releaseInput = z.strictObject({
 export const renewInput = releaseInput.extend({
   ttlSeconds: ttlSeconds.optional(),
 });
+export const renewClaimsInput = actorInput.extend({
+  claimIds: z
+    .array(identifier)
+    .min(1)
+    .max(500)
+    .refine(
+      (ids) => new Set(ids).size === ids.length,
+      "claimIds must be unique.",
+    ),
+  ttlSeconds: ttlSeconds.optional(),
+});
+export const claimsRenewed = z.strictObject({
+  claimCount: z.number().int().positive(),
+  renewedCount: z.number().int().nonnegative(),
+  expiresAt: timestamp,
+  renewAfter: timestamp,
+});
 export const claimsInput = projectInput.extend({
   resource: z.string().trim().min(1).max(1024).optional(),
 });
@@ -203,6 +220,8 @@ export type MemoryDeleted = z.infer<typeof memoryDeleted>;
 export type AcquireInput = z.infer<typeof acquireInput>;
 export type ReleaseInput = z.infer<typeof releaseInput>;
 export type RenewInput = z.infer<typeof renewInput>;
+export type RenewClaimsInput = z.infer<typeof renewClaimsInput>;
+export type ClaimsRenewed = z.infer<typeof claimsRenewed>;
 export type ClaimsInput = z.infer<typeof claimsInput>;
 export type ProjectInput = z.infer<typeof projectInput>;
 export type ContextUpdateInput = z.infer<typeof contextUpdateInput>;

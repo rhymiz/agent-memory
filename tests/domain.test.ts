@@ -212,7 +212,7 @@ describe("claims", () => {
   });
   test("renewal extends from now without shortening a lease", () => {
     const { claim } = f.app.claims.acquire(claimInput);
-    f.advance(100_000);
+    f.advance(150_000);
     const renewed = f.app.claims.renew({
       claimId: claim.id,
       agentId: actor.agentId,
@@ -460,6 +460,7 @@ describe("activity and configuration", () => {
   });
   test("configuration defaults are local and invalid policies fail at startup", () => {
     expect(readConfig({}).host).toBe("127.0.0.1");
+    expect(readConfig({}).defaultTtlSeconds).toBe(1800);
     expect(readConfig({}).dbPath).toEndWith("/.agent-memory/memory.sqlite");
     expect(readRuntimeDirectory({})).toEndWith("/.agent-memory/runtime");
     expect(

@@ -139,6 +139,14 @@ export function createRouter(
     },
     {
       method: "POST",
+      path: /^\/claims\/renew$/,
+      handle: async (request) =>
+        Response.json(
+          app.claims.renewMany(await body(request, c.renewClaimsInput)),
+        ),
+    },
+    {
+      method: "POST",
       path: /^\/claims\/(?<claimId>[^/]+)\/renew$/,
       handle: async (request, _, params) => {
         const input = await body(request, c.renewInput.omit({ claimId: true }));

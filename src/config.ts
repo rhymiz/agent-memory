@@ -16,7 +16,7 @@ const configSchema = z
       .int()
       .min(1)
       .max(2_147_483_647)
-      .default(300),
+      .default(1800),
     maxTtlSeconds: z.coerce
       .number()
       .int()

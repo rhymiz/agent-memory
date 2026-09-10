@@ -177,6 +177,14 @@ export class MemoryClient {
       { agentId: input.agentId, ttlSeconds: input.ttlSeconds },
     );
   }
+  renewClaims(claimIds: string[], ttlSeconds?: number) {
+    return this.request(
+      "POST",
+      "/claims/renew",
+      c.claimsRenewed,
+      c.renewClaimsInput.parse({ ...this.actor, claimIds, ttlSeconds }),
+    );
+  }
   listClaims(input: Omit<c.ClaimsInput, "projectId"> = {}) {
     const parsed = c.claimsInput.parse({
       ...input,
@@ -232,4 +240,5 @@ export type {
   ActivityEvent,
   Metadata,
   MemoryDeleted,
+  ClaimsRenewed,
 } from "../domain/contracts";

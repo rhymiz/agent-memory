@@ -4,6 +4,8 @@ import type {
   ClaimsInput,
   ReleaseInput,
   RenewInput,
+  RenewClaimsInput,
+  ClaimsRenewed,
 } from "../domain/contracts";
 import { AppError } from "../domain/errors";
 import { normalizeResource } from "../domain/resource";
@@ -99,32 +101,38 @@ export class ClaimService {
       return { granted: true, claim };
     });
   }
-  private owned(input: ReleaseInput): Claim {
+  private owned(input: ReleaseInput, now: number, projectId?: string): Claim {
     const claim = this.repository.get(input.claimId);
-    if (!claim)
+    if (!claim || (projectId !== undefined && claim.projectId !== projectId))
       throw new AppError(
         "CLAIM_NOT_FOUND",
         "Claim does not exist or has already been removed.",
         404,
+        { claimId: input.claimId },
       );
     if (claim.agentId !== input.agentId)
       throw new AppError(
         "CLAIM_NOT_OWNER",
         "Only the claim owner may change it.",
         403,
+        { claimId: input.claimId },
       );
-    if (claim.expiresAt <= this.now())
+    if (claim.expiresAt <= now)
       throw new AppError(
         "CLAIM_EXPIRED",
         "Claim has expired; acquire a new claim.",
         409,
-        { expiresAt: claim.expiresAt },
+        {
+          claimId: claim.id,
+          resource: claim.resource,
+          expiresAt: claim.expiresAt,
+        },
       );
     return claim;
   }
   release(input: ReleaseInput): { released: true; claimId: string } {
     return this.transaction.run(() => {
-      const claim = this.owned(input);
+      const claim = this.owned(input, this.now());
       this.repository.delete(claim.id);
       this.event(claim, "claim.released");
       return { released: true, claimId: claim.id };
@@ -133,15 +141,60 @@ export class ClaimService {
   renew(input: RenewInput): Claim {
     const ttl = this.ttl(input.ttlSeconds);
     return this.transaction.run(() => {
-      const claim = this.owned(input);
-      const renewed = {
-        ...claim,
-        expiresAt: Math.max(claim.expiresAt, this.now() + ttl),
-      };
-      this.repository.renew(claim.id, renewed.expiresAt);
-      this.event(renewed, "claim.renewed");
-      return renewed;
+      const now = this.now();
+      const claim = this.owned(input, now);
+      return this.renewOwned([claim], ttl, now).claims[0]!;
     });
+  }
+  renewMany(input: RenewClaimsInput): ClaimsRenewed {
+    const ttl = this.ttl(input.ttlSeconds);
+    return this.transaction.run(() => {
+      const now = this.now();
+      // Validate every requested lease before changing any of them. Missing,
+      // expired, foreign-project and non-owned claims fail the entire batch.
+      const claims = input.claimIds.map((claimId) =>
+        this.owned({ claimId, agentId: input.agentId }, now, input.projectId),
+      );
+      return this.renewOwned(claims, ttl, now).summary;
+    });
+  }
+  private renewOwned(
+    claims: Claim[],
+    ttl: number,
+    now: number,
+  ): { claims: Claim[]; summary: ClaimsRenewed } {
+    const earliest = Math.min(...claims.map((claim) => claim.expiresAt));
+    const due = now >= earliest - ttl / 2;
+    let renewedCount = 0;
+    const renewed = claims.map((claim) => {
+      const expiresAt = due
+        ? Math.max(claim.expiresAt, now + ttl)
+        : claim.expiresAt;
+      if (expiresAt === claim.expiresAt) return claim;
+      this.repository.renew(claim.id, expiresAt);
+      renewedCount++;
+      return { ...claim, expiresAt };
+    });
+    const expiresAt = Math.min(...renewed.map((claim) => claim.expiresAt));
+    const summary: ClaimsRenewed = {
+      claimCount: claims.length,
+      renewedCount,
+      expiresAt,
+      renewAfter: expiresAt - ttl / 2,
+    };
+    if (renewedCount > 0) {
+      if (renewed.length === 1) this.event(renewed[0]!, "claim.renewed");
+      else
+        this.activity.append({
+          projectId: renewed[0]!.projectId,
+          agentId: renewed[0]!.agentId,
+          type: "claim.renewed",
+          resource: null,
+          message: `Renewed ${renewedCount} resource leases.`,
+          metadata: summary,
+        });
+    }
+    return { claims: renewed, summary };
   }
   list(input: ClaimsInput) {
     const resource =

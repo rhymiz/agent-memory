@@ -22,7 +22,7 @@ export async function startDaemon(
         AGENT_MEMORY_DB: dbPath,
         AGENT_MEMORY_HOST: "127.0.0.1",
         AGENT_MEMORY_PORT: "0",
-        AGENT_MEMORY_DEFAULT_CLAIM_TTL: "300",
+        AGENT_MEMORY_DEFAULT_CLAIM_TTL: "1800",
         AGENT_MEMORY_MAX_CLAIM_TTL: "3600",
       },
       cwd: options.cwd,

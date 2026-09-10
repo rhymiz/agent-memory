@@ -94,7 +94,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "claim_acquire",
     {
       description:
-        "Acquire an exclusive resource lease. CLAIM_CONFLICT means another active lease exists, including one you already own.",
+        "Acquire an exclusive resource lease for work you are actively doing. Omit ttlSeconds for the daemon default (normally 30 minutes). CLAIM_CONFLICT means an active lease exists, including one you own. Use claims_renew to renew multiple claims in one call.",
       inputSchema: c.acquireInput,
       outputSchema: c.claimGranted,
       annotations: write,
@@ -115,12 +115,23 @@ export function registerTools(server: McpServer, app: Application): void {
     "claim_renew",
     {
       description:
-        "Extend your active claim before its TTL elapses. Expired claims cannot be revived.",
+        "Renew one active claim only when half its requested TTL remains; early calls do nothing. For multiple claims use one claims_renew call instead of a per-file loop. Omit ttlSeconds for the daemon default. Expired claims cannot be revived.",
       inputSchema: c.renewInput,
       outputSchema: c.claimSchema,
       annotations: write,
     },
     (input) => result(() => app.claims.renew(input)),
+  );
+  server.registerTool(
+    "claims_renew",
+    {
+      description:
+        "Renew 1–500 owned project claims atomically in one call. Omit ttlSeconds for the daemon default (normally 30 minutes). Early calls do nothing. Save the returned renewAfter and do not call again before that wall-clock time. Any missing, expired, foreign-project or non-owned claim rejects the entire batch; reread claims and stop edits on lost resources before retrying. Returns a compact summary, not one record per file.",
+      inputSchema: c.renewClaimsInput,
+      outputSchema: c.claimsRenewed,
+      annotations: write,
+    },
+    (input) => result(() => app.claims.renewMany(input)),
   );
   server.registerTool(
     "claims_list",
