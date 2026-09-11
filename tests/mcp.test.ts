@@ -66,6 +66,31 @@ test("advertises all fifteen tools with structured input and output schemas", as
   }
 });
 
+test("text-only MCP clients receive populated records and empty lists", async () => {
+  const context = await f.client().updateContext({
+    expectedVersion: 0,
+    content: 'Shared "context"\nCuraçao → canonical contracts',
+  });
+  for (const { name, expected } of [
+    { name: "project_context_get", expected: context },
+    { name: "claims_list", expected: { items: [] } },
+  ]) {
+    const result = await mcp.callTool({
+      name,
+      arguments: { projectId: actor.projectId },
+    });
+    expect(result.isError).not.toBe(true);
+    const text = result.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n");
+    expect(text).not.toBe("");
+    const data: unknown = JSON.parse(text);
+    expect(data).toEqual(expected);
+    expect(result.structuredContent).toEqual(expected);
+  }
+});
+
 test("memory tools and HTTP read and write the same project state", async () => {
   const fromMcp = c.memorySchema.parse(
     await call("memory_remember", {

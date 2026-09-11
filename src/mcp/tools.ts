@@ -8,7 +8,10 @@ async function result(
 ): Promise<CallToolResult> {
   try {
     const data = await operation();
-    return { content: [], structuredContent: data };
+    return {
+      content: [{ type: "text", text: JSON.stringify(data) }],
+      structuredContent: data,
+    };
   } catch (error) {
     const failure = publicError(error);
     const data =
