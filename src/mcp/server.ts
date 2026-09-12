@@ -10,7 +10,7 @@ export function createMcpServer(app: Application): McpServer {
     {
       supportedProtocolVersions: ["2026-07-28"],
       instructions:
-        "Before significant project work: read context, recent activity and relevant memories; check and acquire claims. Renew claims during long work. Record reusable discoveries and explicit decisions. Update incorrect memories and delete obsolete or duplicate memories using the version you read, instead of appending contradictory copies. Record results and release claims when finished. Agent IDs identify callers but are not authentication.",
+        "Shared project knowledge and cooperative leases. Retrieve task-relevant context; claim before shared edits. Agent IDs are not authentication.",
     },
   );
   registerTools(server, app);

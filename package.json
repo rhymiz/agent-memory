@@ -1,6 +1,6 @@
 {
   "name": "agent-memory",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "check": "bun run format:check && bun run typecheck && bun test",
-    "format": "prettier --write src tests examples scripts README.md docs package.json tsconfig.json",
-    "format:check": "prettier --check src tests examples scripts README.md docs package.json tsconfig.json",
+    "format": "prettier --write src tests examples scripts README.md docs skills package.json tsconfig.json",
+    "format:check": "prettier --check src tests examples scripts README.md docs skills package.json tsconfig.json",
     "demo": "bun run examples/two-agents.ts",
     "build": "bun run scripts/build.ts",
     "model:download": "bun run scripts/download-model.ts",

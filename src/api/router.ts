@@ -45,12 +45,15 @@ function query<T>(url: URL, schema: z.ZodType<T>, extra: Params = {}): T {
       );
     values[key] = value;
   }
-  for (const key of ["limit", "since"]) {
+  for (const key of ["limit", "since", "maxBytes"]) {
     const value = values[key];
     if (typeof value === "string" && /^\d+$/.test(value))
       values[key] = Number(value);
   }
-  if (url.pathname === "/memories/search") {
+  if (
+    url.pathname === "/memories/search" ||
+    url.pathname === "/memories/search/compact"
+  ) {
     if (Object.hasOwn(values, "query"))
       throw new AppError(
         "INVALID_REQUEST",
@@ -92,6 +95,14 @@ export function createRouter(
       path: /^\/memories\/search$/,
       handle: async (_, url) =>
         Response.json(await app.memories.search(query(url, c.searchInput))),
+    },
+    {
+      method: "GET",
+      path: /^\/memories\/search\/compact$/,
+      handle: async (_, url) =>
+        Response.json(
+          await app.memories.searchCompact(query(url, c.compactSearchInput)),
+        ),
     },
     {
       method: "GET",
@@ -166,6 +177,21 @@ export function createRouter(
         return Response.json(
           app.claims.release(
             parseInput(c.releaseInput, { ...input, ...params }),
+          ),
+        );
+      },
+    },
+    {
+      method: "POST",
+      path: /^\/projects\/(?<projectId>[^/]+)\/briefing$/,
+      handle: async (request, _, params) => {
+        const input = await body(
+          request,
+          c.briefingInput.omit({ projectId: true }),
+        );
+        return Response.json(
+          await app.briefing.get(
+            parseInput(c.briefingInput, { ...input, ...params }),
           ),
         );
       },

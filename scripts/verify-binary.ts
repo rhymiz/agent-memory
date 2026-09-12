@@ -15,7 +15,12 @@ import {
 } from "@modelcontextprotocol/client";
 import { startDaemon } from "../examples/daemon-process";
 import { MemoryClient } from "../src/client/memory-client";
-import { claimsRenewed, memoriesResult } from "../src/domain/contracts";
+import {
+  claimsRenewed,
+  compactSearchResult,
+  memoriesResult,
+  projectBriefing,
+} from "../src/domain/contracts";
 
 // macOS supplies an OS-enforced network policy. No inference/network mocks are used.
 if (process.platform !== "darwin")
@@ -66,7 +71,7 @@ try {
     agentId: "a",
   });
   const health = await client.health();
-  assert.equal(health.version, "0.4.1");
+  assert.equal(health.version, "0.5.0");
   const memory = await client.remember({
     type: "fact",
     content:
@@ -81,11 +86,44 @@ try {
   await mcp.connect(
     new StreamableHTTPClientTransport(new URL("/mcp", daemon.baseUrl)),
   );
-  assert.equal((await mcp.listTools()).tools.length, 15);
-  const defaultClaim = await client.claim({
+  assert.equal((await mcp.listTools()).tools.length, 17);
+  const acquired = await client.acquireClaim({
     resource: "feature:default-lease",
   });
+  const defaultClaim = acquired.claim;
   assert.equal(defaultClaim.expiresAt - defaultClaim.createdAt, 1_800_000);
+  assert.equal(acquired.schedule.renewAfter - defaultClaim.createdAt, 900_000);
+  assert.equal(acquired.schedule.expiresAt, defaultClaim.expiresAt);
+  const compactResponse = await mcp.callTool({
+    name: "memory_search_compact",
+    arguments: { projectId: "offline", query, maxBytes: 1024 },
+  });
+  const compact = compactSearchResult.parse(compactResponse.structuredContent);
+  assert.deepEqual(
+    compact,
+    await client.searchCompact({ query, maxBytes: 1024 }),
+  );
+  assert.equal(compact.items[0]?.id, memory.id);
+  assert.ok(new TextEncoder().encode(JSON.stringify(compact)).length <= 1024);
+  assert.deepEqual(compactResponse.content, [
+    { type: "text", text: JSON.stringify(compactResponse.structuredContent) },
+  ]);
+  const briefingResponse = await mcp.callTool({
+    name: "project_briefing",
+    arguments: { projectId: "offline", query, maxBytes: 4096 },
+  });
+  const briefing = projectBriefing.parse(briefingResponse.structuredContent);
+  assert.deepEqual(
+    briefing,
+    await client.getBriefing({ query, maxBytes: 4096 }),
+  );
+  assert.equal(briefing.memories?.items[0]?.id, memory.id);
+  assert.equal(briefing.claims?.items[0]?.id, defaultClaim.id);
+  assert.deepEqual(briefing.context, { items: [], hasMore: false });
+  assert.ok(new TextEncoder().encode(JSON.stringify(briefing)).length <= 4096);
+  assert.deepEqual(briefingResponse.content, [
+    { type: "text", text: JSON.stringify(briefingResponse.structuredContent) },
+  ]);
   const shortClaim = await client.claim({
     resource: "feature:short-lease",
     ttlSeconds: 300,
@@ -159,7 +197,7 @@ try {
     [],
   );
   console.log(
-    "PASS: standalone binary, fresh cache, blocked external network/source access, HTTP/MCP semantic retrieval and batch renewal, 30-minute default leases, restart, cache repair, update and delete",
+    "PASS: standalone binary, fresh cache, blocked external network/source access, HTTP/MCP full and compact semantic retrieval, bounded briefing, initial lease schedules and batch renewal, restart, cache repair, update and delete",
   );
 } finally {
   await mcp?.close();

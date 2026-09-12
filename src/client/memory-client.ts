@@ -117,6 +117,22 @@ export class MemoryClient {
       c.memorySchema,
     );
   }
+  searchCompact(input: Omit<c.CompactSearchInput, "projectId">) {
+    const parsed = c.compactSearchInput.parse({
+      ...input,
+      projectId: this.options.projectId,
+    });
+    return this.request(
+      "GET",
+      `/memories/search/compact${this.query({
+        projectId: parsed.projectId,
+        q: parsed.query,
+        limit: parsed.limit,
+        maxBytes: parsed.maxBytes,
+      })}`,
+      c.compactSearchResult,
+    );
+  }
   updateMemory(
     memoryId: string,
     input: Omit<c.MemoryUpdateInput, "memoryId" | "projectId" | "agentId">,
@@ -147,13 +163,16 @@ export class MemoryClient {
     );
   }
   async claim(input: Omit<c.AcquireInput, "projectId" | "agentId">) {
-    const result = await this.request(
+    const result = await this.acquireClaim(input);
+    return result.claim;
+  }
+  acquireClaim(input: Omit<c.AcquireInput, "projectId" | "agentId">) {
+    return this.request(
       "POST",
       "/claims",
       c.claimGranted,
       c.acquireInput.parse({ ...input, ...this.actor }),
     );
-    return result.claim;
   }
   releaseClaim(claimId: string) {
     c.releaseInput.parse({ claimId, agentId: this.options.agentId });
@@ -194,6 +213,14 @@ export class MemoryClient {
   }
   getContext() {
     return this.request("GET", `${this.projectPath}/context`, c.contextSchema);
+  }
+  getBriefing(input: Omit<c.BriefingInput, "projectId">) {
+    return this.request(
+      "POST",
+      `${this.projectPath}/briefing`,
+      c.projectBriefing,
+      c.briefingInput.omit({ projectId: true }).parse(input),
+    );
   }
   updateContext(input: Omit<c.ContextUpdateInput, "projectId" | "agentId">) {
     return this.request(
@@ -241,4 +268,10 @@ export type {
   Metadata,
   MemoryDeleted,
   ClaimsRenewed,
+  LeaseSchedule,
+  ClaimGranted,
+  TextExcerpt,
+  MemorySearchHit,
+  CompactSearchResult,
+  ProjectBriefing,
 } from "../domain/contracts";

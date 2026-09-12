@@ -10,6 +10,7 @@ import { ClaimService, type ClaimPolicy } from "./services/claim-service";
 import { ContextService } from "./services/context-service";
 import { DecisionService } from "./services/decision-service";
 import { MemoryService } from "./services/memory-service";
+import { BriefingService } from "./services/briefing-service";
 import type { ActivityInput } from "./domain/contracts";
 import packageInfo from "../package.json";
 import type { EmbeddingModel } from "./domain/embedding";
@@ -32,26 +33,36 @@ export function createApplication(
     now,
     policy,
   );
+  const memories = new MemoryService(
+    new SqliteMemoryRepository(store),
+    store,
+    activity,
+    now,
+    model,
+  );
+  const context = new ContextService(
+    new SqliteContextRepository(store),
+    store,
+    activity,
+    now,
+  );
+  const decisions = new DecisionService(
+    new SqliteDecisionRepository(store),
+    store,
+    activity,
+    now,
+  );
   return {
-    memories: new MemoryService(
-      new SqliteMemoryRepository(store),
-      store,
-      activity,
-      now,
-      model,
-    ),
+    memories,
     claims,
-    context: new ContextService(
-      new SqliteContextRepository(store),
-      store,
+    context,
+    decisions,
+    briefing: new BriefingService(
+      memories,
+      context,
+      claims,
+      decisions,
       activity,
-      now,
-    ),
-    decisions: new DecisionService(
-      new SqliteDecisionRepository(store),
-      store,
-      activity,
-      now,
     ),
     activity: {
       recent(input: ActivityInput) {

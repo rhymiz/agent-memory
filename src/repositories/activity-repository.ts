@@ -33,6 +33,7 @@ export class SqliteActivityRepository implements ActivityRepository {
       `SELECT id, project_id AS projectId, agent_id AS agentId, type, resource, message, metadata, created_at AS createdAt
       FROM activity WHERE project_id = ? AND (? IS NULL OR created_at >= ?)
       AND (? IS NULL OR agent_id = ?) AND (? IS NULL OR type = ?)
+      AND (? IS NULL OR CASE WHEN type LIKE 'claim.%' THEN 'coordination' ELSE 'knowledge' END = ?)
       ORDER BY created_at DESC, rowid DESC LIMIT ?`,
       [
         input.projectId,
@@ -42,6 +43,8 @@ export class SqliteActivityRepository implements ActivityRepository {
         input.agentId ?? null,
         input.type ?? null,
         input.type ?? null,
+        input.category ?? null,
+        input.category ?? null,
         input.limit ?? 50,
       ],
     );

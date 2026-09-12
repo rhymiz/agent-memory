@@ -3,7 +3,11 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
-import { claimsRenewed, renewClaimsInput } from "../src/domain/contracts";
+import {
+  claimGranted,
+  claimsRenewed,
+  renewClaimsInput,
+} from "../src/domain/contracts";
 import { fixture, type Fixture } from "./helpers";
 
 let f: Fixture;
@@ -17,6 +21,57 @@ afterEach(async () => {
 function acquire(resource: string, ttlSeconds = 300) {
   return f.app.claims.acquire({ ...actor, resource, ttlSeconds }).claim;
 }
+
+test("acquisition exposes the configured renewal schedule through HTTP and MCP", async () => {
+  const first = await f
+    .client()
+    .acquireClaim({ resource: "file:src/first.ts" });
+  expect(first.schedule).toEqual({
+    expiresAt: first.claim.expiresAt,
+    renewAfter: f.time + 150_000,
+  });
+  const early = await f.client().renewClaims([first.claim.id]);
+  expect(early).toMatchObject({ ...first.schedule, renewedCount: 0 });
+  f.advance(first.schedule.renewAfter - f.time);
+  expect(await f.client().renewClaims([first.claim.id])).toMatchObject({
+    renewedCount: 1,
+  });
+  const mcp = new Client(
+    { name: "lease-schedule-test", version: "1" },
+    { versionNegotiation: { mode: { pin: "2026-07-28" } } },
+  );
+  try {
+    await mcp.connect(
+      new StreamableHTTPClientTransport(new URL("/mcp", f.baseUrl)),
+    );
+    const response = await mcp.callTool({
+      name: "claim_acquire",
+      arguments: {
+        ...actor,
+        resource: "file:src/second.ts",
+        ttlSeconds: 60,
+      },
+    });
+    expect(response.isError).not.toBe(true);
+    const acquired = claimGranted.parse(response.structuredContent);
+    expect(acquired.schedule).toEqual({
+      expiresAt: f.time + 60_000,
+      renewAfter: f.time + 30_000,
+    });
+    expect(response.content).toEqual([
+      { type: "text", text: JSON.stringify(response.structuredContent) },
+    ]);
+    expect(await f.client().renewClaims([acquired.claim.id], 60)).toMatchObject(
+      { ...acquired.schedule, renewedCount: 0 },
+    );
+    f.advance(acquired.schedule.renewAfter - f.time);
+    expect(await f.client().renewClaims([acquired.claim.id], 60)).toMatchObject(
+      { renewedCount: 1 },
+    );
+  } finally {
+    await mcp.close();
+  }
+});
 
 test("a 122-claim batch renews once with a compact result and one activity event", async () => {
   const claims = Array.from({ length: 122 }, (_, index) =>

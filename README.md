@@ -51,6 +51,50 @@ agent context. This exact scan suits a small local corpus; cost grows with the
 project's indexed chunks.
 
 Creating or correcting a memory completes indexing before returning success.
+
+## Compact agent context
+
+`memory_search_compact` / `MemoryClient.searchCompact()` use the same hybrid
+ranking as full search, returning `{ items, hasMore }` with IDs, types, versions,
+update timestamps, and `{ text, truncated }` excerpts. Excerpts are verbatim
+windows around query terms; semantic-only matches use leading text. Expand a hit
+with `memory_get` / `getMemory()` before correcting or deleting it. Full search
+continues to return complete records with its existing contract.
+
+Compact search defaults to 8 hits (maximum 50) and a 12000-byte budget. `maxBytes`
+accepts 1024–64000 and bounds the serialized UTF-8 JSON data object, including
+escaping and record fields, but excluding the MCP envelope and its duplicate
+text/structured representation. Metadata is omitted. `hasMore` means additional
+hits were omitted by count or byte budget; `excerpt.truncated` means that record's
+text is incomplete. Tight budgets can return an empty collection with `hasMore`
+set to true. Both MCP representations contain the same data.
+
+`project_briefing` / `MemoryClient.getBriefing()` compose existing services into
+bounded context, relevant memories, active claims, and recent knowledge changes:
+
+```ts
+const briefing = await memory.getBriefing({
+  query: "Change the pagination contract",
+  maxBytes: 20000,
+  sections: ["context", "memories", "claims", "activity", "decisions"],
+});
+```
+
+Omit `sections` to request all except decisions. Each requested section is a
+bounded collection with its own omission flag; unrequested sections are absent.
+Context contains at most one record: an empty collection with `hasMore: false`
+means context has not been initialized. This is not an error or a request to
+create context. Decisions are the most recent active decisions, not query-ranked.
+Activity excludes lease events before applying its limit, so lease churn cannot
+hide knowledge changes. Its memory/context excerpts reflect current referenced
+versions rather than historical event content; deleted memories are not recovered.
+
+The default briefing budget is 20000 bytes, divided among requested sections.
+Sections contain at most five items, except claims (ten) and context (one).
+Use `since` for an inclusive activity timestamp. Expand relevant omissions with
+the existing full-read tools or a narrower briefing. A brief is an orientation
+view, not an atomic snapshot or a substitute for claim acquisition/version checks.
+No new persistence tables, summarization model, or claim acquisitions are involved.
 Deletes remove vectors in the same transaction. Inference or transaction failure
 leaves the previous memory and indexes intact. Startup backfills missing or
 outdated embeddings in resumable batches without changing memory versions or
@@ -165,13 +209,14 @@ Search results also include `version`, so an agent can update or delete a result
 
 ## HTTP API
 
-Bodies use `Content-Type: application/json`. Responses contain camelCase properties, decoded JSON metadata, explicit nulls for missing optional record values, and Unix milliseconds for timestamps. Unknown input fields are rejected. Create endpoints return complete records; claim acquisition wraps the claim in `{ granted: true, claim }`.
+Bodies use `Content-Type: application/json`. Responses contain camelCase properties, decoded JSON metadata, explicit nulls for missing optional record values, and Unix milliseconds for timestamps. Unknown input fields are rejected. Create endpoints return complete records; claim acquisition wraps the claim in `{ granted: true, claim, schedule: { expiresAt, renewAfter } }`. Clients validating the acquisition envelope must accept its new `schedule` field; update the bundled TypeScript client alongside the daemon.
 
 | Method and path                | Request                                                                            |
 | ------------------------------ | ---------------------------------------------------------------------------------- |
 | `GET /health`                  | —                                                                                  |
 | `POST /memories`               | `{ projectId, agentId, type, content, importance?, metadata? }`                    |
 | `GET /memories/search`         | `?projectId=…&q=…&limit=10`                                                        |
+| `GET /memories/search/compact` | `?projectId=…&q=…&limit=8&maxBytes=12000`                                          |
 | `GET /memories/:id`            | `?projectId=…`                                                                     |
 | `PATCH /memories/:id`          | `{ projectId, agentId, expectedVersion, content?, type?, importance?, metadata? }` |
 | `DELETE /memories/:id`         | JSON body `{ projectId, agentId, expectedVersion }`                                |
@@ -181,12 +226,13 @@ Bodies use `Content-Type: application/json`. Responses contain camelCase propert
 | `POST /claims/:id/renew`       | `{ agentId, ttlSeconds? }`                                                         |
 | `DELETE /claims/:id`           | JSON body `{ agentId }`                                                            |
 | `GET /projects/:id/context`    | —                                                                                  |
+| `POST /projects/:id/briefing`  | `{ query, maxBytes?, sections?, since? }` (read-only)                              |
 | `PUT /projects/:id/context`    | `{ agentId, expectedVersion, content }`                                            |
 | `POST /projects/:id/decisions` | `{ agentId, subject, decision, reasoning?, supersedesId? }`                        |
 | `GET /projects/:id/decisions`  | `?status=active&limit=50`                                                          |
-| `GET /projects/:id/activity`   | `?limit=50&since=…&agentId=…&type=…`                                               |
+| `GET /projects/:id/activity`   | `?limit=50&since=…&agentId=…&type=…&category=knowledge`                            |
 
-List/search responses use `{ items: [...] }`. Search defaults to 10 results; decisions and activity default to 50. Limits range from 1 to 200. Claims list all active claims matching the requested scope. Project and agent IDs use letters, numbers, dots, underscores and hyphens, up to 128 characters, starting with a letter or number. No project registration is required.
+Full list/search responses use `{ items: [...] }`; compact collections add `hasMore`. Full search defaults to 10 results; decisions and activity default to 50. Their limits range from 1 to 200. Claims list all active claims matching the requested scope. Activity's optional category is `knowledge` or `coordination` and combines with the existing filters. Project and agent IDs use letters, numbers, dots, underscores and hyphens, up to 128 characters, starting with a letter or number. No project registration is required.
 
 Errors have `{ error: { code, message, details? } }`. Claim conflicts additionally return `{ granted: false, conflict: { claimId, agentId, resource, intent, expiresAt } }` with HTTP 409. Canonical codes and DTO schemas live in `src/domain/`.
 
@@ -200,10 +246,13 @@ Claim only the files needed for the current phase of work, and release them prom
 when finished. Claims still expire when an agent crashes; the daemon does not
 renew leases in the background.
 
-Keep the IDs returned by acquisition. At the earliest claim's initial midpoint
-(`createdAt + (expiresAt - createdAt) / 2`), renew the whole set in one call:
+Use `MemoryClient.acquireClaim()` to retain the initial schedule as well as the
+claim; `claim()` remains a convenience method returning only the claim. At the
+earliest owned `schedule.renewAfter`, renew the whole set in one call:
 
 ```ts
+const acquired = await memory.acquireClaim({ resource: "file:src/search.ts" });
+// Retain acquired.claim.id and acquired.schedule, then renew when due.
 const renewal = await memory.renewClaims(ownedClaims.map((claim) => claim.id));
 // Schedule the next renewal using renewal.renewAfter (UTC Unix milliseconds).
 ```
@@ -265,6 +314,7 @@ Tools:
 
 ```text
 memory_remember          memory_search
+memory_search_compact    project_briefing
 memory_get               memory_update           memory_delete
 claim_acquire            claim_release           claim_renew
 claims_list              claims_renew            project_context_get     project_context_update
@@ -306,5 +356,14 @@ HTTP / MCP → application services → repository interfaces → bun:sqlite
 The tests cover domain transitions, transaction rollback, HTTP boundaries, all MCP tools/resources on the pinned protocol, stdio/HTTP shared state, independent process coordination, persistence/restart and rejection of a second database owner.
 
 Reusable agent instructions: [docs/agent-instructions.md](docs/agent-instructions.md).
+
+The maintained [shared-agent-memory skill](skills/shared-agent-memory/SKILL.md)
+keeps the entrypoint short and routes operation details to references. To install
+or update the skill locally while preserving existing UI metadata:
+
+```sh
+mkdir -p ~/.codex/skills/shared-agent-memory
+cp -R skills/shared-agent-memory/. ~/.codex/skills/shared-agent-memory/
+```
 
 Implementation references: [Bun SQLite](https://bun.com/docs/runtime/sqlite), [SQLite FTS5 synchronization](https://www.sqlite.org/fts5.html#external_content_tables), [SQLite exclusive WAL](https://www.sqlite.org/walformat.html), [MCP web-standard serving](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/serving/web-standard.md), [MCP stdio serving](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/serving/stdio.md), [MCP protocol versions](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/protocol-versions.md).

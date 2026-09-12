@@ -39,6 +39,28 @@ const destructive = { ...write, destructiveHint: true };
 
 export function registerTools(server: McpServer, app: Application): void {
   server.registerTool(
+    "project_briefing",
+    {
+      description:
+        "Start project work with bounded context, relevant memories, active claims and knowledge changes. Request the decisions section for architecture work. Excerpts and hasMore disclose omissions; expand relevant records before changing them. Does not acquire claims.",
+      inputSchema: c.briefingInput,
+      outputSchema: c.projectBriefing,
+      annotations: read,
+    },
+    (input) => result(() => app.briefing.get(input)),
+  );
+  server.registerTool(
+    "memory_search_compact",
+    {
+      description:
+        "Find project memories with verbatim excerpts within maxBytes of UTF-8 JSON (default 12000). hasMore indicates omitted hits; excerpt.truncated indicates omitted text. Use memory_get for full details before corrections or deletion.",
+      inputSchema: c.compactSearchInput,
+      outputSchema: c.compactSearchResult,
+      annotations: read,
+    },
+    (input) => result(() => app.memories.searchCompact(input)),
+  );
+  server.registerTool(
     "memory_remember",
     {
       description:
@@ -97,7 +119,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "claim_acquire",
     {
       description:
-        "Acquire an exclusive resource lease for work you are actively doing. Omit ttlSeconds for the daemon default (normally 30 minutes). CLAIM_CONFLICT means an active lease exists, including one you own. Use claims_renew to renew multiple claims in one call.",
+        "Claim a resource before shared edits. Omit ttlSeconds for the daemon default. Save the claim ID and schedule.renewAfter; renew the owned set with claims_renew when due, then release after work. CLAIM_CONFLICT includes the current owner, even for your own existing lease.",
       inputSchema: c.acquireInput,
       outputSchema: c.claimGranted,
       annotations: write,
@@ -194,7 +216,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "activity_recent",
     {
       description:
-        "Read recent project activity, newest first. since is inclusive Unix milliseconds; deduplicate polled events by id.",
+        "Read recent project activity, newest first. category=knowledge excludes lease events. since is inclusive Unix milliseconds; deduplicate polled events by id.",
       inputSchema: c.activityInput,
       outputSchema: c.activityResult,
       annotations: read,

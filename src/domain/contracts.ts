@@ -49,6 +49,11 @@ export const searchInput = projectInput.extend({
   query: z.string().trim().min(1).max(1000),
   limit: limit.optional(),
 });
+export const responseBudget = z.number().int().min(1024).max(64_000);
+export const compactSearchInput = searchInput.extend({
+  limit: z.number().int().min(1).max(50).optional(),
+  maxBytes: responseBudget.optional(),
+});
 export const memoryGetInput = projectInput.extend({ memoryId: identifier });
 export const memoryDeleteBody = actorInput.extend({
   expectedVersion: z.number().int().positive(),
@@ -95,11 +100,13 @@ export const renewClaimsInput = actorInput.extend({
     ),
   ttlSeconds: ttlSeconds.optional(),
 });
-export const claimsRenewed = z.strictObject({
-  claimCount: z.number().int().positive(),
-  renewedCount: z.number().int().nonnegative(),
+export const leaseSchedule = z.strictObject({
   expiresAt: timestamp,
   renewAfter: timestamp,
+});
+export const claimsRenewed = leaseSchedule.extend({
+  claimCount: z.number().int().positive(),
+  renewedCount: z.number().int().nonnegative(),
 });
 export const claimsInput = projectInput.extend({
   resource: z.string().trim().min(1).max(1024).optional(),
@@ -127,6 +134,7 @@ export const activityInput = projectInput.extend({
   since: timestamp.optional(),
   agentId: identifier.optional(),
   type: activityType.optional(),
+  category: z.enum(["knowledge", "coordination"]).optional(),
 });
 
 export const memorySchema = z.strictObject({
@@ -194,6 +202,7 @@ export const activityResult = z.strictObject({
 export const claimGranted = z.strictObject({
   granted: z.literal(true),
   claim: claimSchema,
+  schedule: leaseSchedule,
 });
 export const claimReleased = z.strictObject({
   released: z.literal(true),
@@ -203,6 +212,67 @@ export const healthSchema = z.strictObject({
   status: z.literal("ok"),
   database: z.literal("ok"),
   version: z.string(),
+});
+
+export const textExcerpt = z.strictObject({
+  text: z.string(),
+  truncated: z.boolean(),
+});
+export function boundedCollection<T extends z.ZodType>(item: T) {
+  return z.strictObject({ items: z.array(item), hasMore: z.boolean() });
+}
+export const memorySearchHit = memorySchema
+  .pick({ id: true, type: true, version: true, updatedAt: true })
+  .extend({ excerpt: textExcerpt });
+export const compactSearchResult = boundedCollection(memorySearchHit);
+export const contextPreview = contextSchema
+  .omit({ content: true })
+  .extend({ excerpt: textExcerpt });
+export const claimPreview = claimSchema
+  .omit({ intent: true })
+  .extend({ intent: textExcerpt.nullable() });
+export const decisionPreview = decisionSchema
+  .pick({ id: true, subject: true, createdAt: true })
+  .extend({ excerpt: textExcerpt });
+export const activityPreview = activitySchema
+  .omit({ metadata: true, message: true })
+  .extend({
+    excerpt: textExcerpt,
+    reference: z
+      .strictObject({
+        kind: z.enum(["memory", "decision", "context"]),
+        id: identifier,
+        version: z.number().int().positive().nullable(),
+      })
+      .nullable(),
+  });
+export const briefingSection = z.enum([
+  "context",
+  "memories",
+  "claims",
+  "decisions",
+  "activity",
+]);
+export const briefingInput = projectInput.extend({
+  query: searchInput.shape.query,
+  maxBytes: responseBudget.optional(),
+  since: timestamp.optional(),
+  sections: z
+    .array(briefingSection)
+    .min(1)
+    .max(5)
+    .refine(
+      (items) => new Set(items).size === items.length,
+      "Sections must be unique.",
+    )
+    .optional(),
+});
+export const projectBriefing = projectInput.extend({
+  context: boundedCollection(contextPreview).optional(),
+  memories: compactSearchResult.optional(),
+  claims: boundedCollection(claimPreview).optional(),
+  decisions: boundedCollection(decisionPreview).optional(),
+  activity: boundedCollection(activityPreview).optional(),
 });
 
 export type Memory = z.infer<typeof memorySchema>;
@@ -222,6 +292,20 @@ export type ReleaseInput = z.infer<typeof releaseInput>;
 export type RenewInput = z.infer<typeof renewInput>;
 export type RenewClaimsInput = z.infer<typeof renewClaimsInput>;
 export type ClaimsRenewed = z.infer<typeof claimsRenewed>;
+export type LeaseSchedule = z.infer<typeof leaseSchedule>;
+export type ClaimGranted = z.infer<typeof claimGranted>;
+export type TextExcerpt = z.infer<typeof textExcerpt>;
+export type MemorySearchHit = z.infer<typeof memorySearchHit>;
+export type CompactSearchInput = z.infer<typeof compactSearchInput>;
+export type CompactSearchResult = z.infer<typeof compactSearchResult>;
+export type BriefingInput = z.infer<typeof briefingInput>;
+export type BriefingSection = z.infer<typeof briefingSection>;
+export type ProjectBriefing = z.infer<typeof projectBriefing>;
+export type ActivityPreview = z.infer<typeof activityPreview>;
+export interface BoundedCollection<T> {
+  items: T[];
+  hasMore: boolean;
+}
 export type ClaimsInput = z.infer<typeof claimsInput>;
 export type ProjectInput = z.infer<typeof projectInput>;
 export type ContextUpdateInput = z.infer<typeof contextUpdateInput>;

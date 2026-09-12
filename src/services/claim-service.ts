@@ -6,9 +6,11 @@ import type {
   RenewInput,
   RenewClaimsInput,
   ClaimsRenewed,
+  ClaimGranted,
 } from "../domain/contracts";
 import { AppError } from "../domain/errors";
 import { normalizeResource } from "../domain/resource";
+import { scheduleLease } from "../domain/lease";
 import type { ClaimRepository } from "../repositories/claim-repository";
 import type { UnitOfWork } from "../repositories/sqlite-store";
 import { ActivityService, type Clock } from "./activity-service";
@@ -66,7 +68,7 @@ export class ClaimService {
   expire(projectId: string): void {
     this.transaction.run(() => this.removeExpired(projectId, this.now()));
   }
-  acquire(input: AcquireInput): { granted: true; claim: Claim } {
+  acquire(input: AcquireInput): ClaimGranted {
     const resource = normalizeResource(input.resource);
     const ttl = this.ttl(input.ttlSeconds);
     return this.transaction.run(() => {
@@ -98,7 +100,11 @@ export class ClaimService {
       };
       this.repository.insert(claim);
       this.event(claim, "claim.acquired");
-      return { granted: true, claim };
+      return {
+        granted: true,
+        claim,
+        schedule: scheduleLease(claim.expiresAt, ttl),
+      };
     });
   }
   private owned(input: ReleaseInput, now: number, projectId?: string): Claim {
@@ -179,8 +185,7 @@ export class ClaimService {
     const summary: ClaimsRenewed = {
       claimCount: claims.length,
       renewedCount,
-      expiresAt,
-      renewAfter: expiresAt - ttl / 2,
+      ...scheduleLease(expiresAt, ttl),
     };
     if (renewedCount > 0) {
       if (renewed.length === 1) this.event(renewed[0]!, "claim.renewed");

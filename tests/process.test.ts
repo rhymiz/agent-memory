@@ -129,7 +129,7 @@ test("stdio MCP and HTTP share one process; stdio diagnostics never corrupt the 
       agentId: "http-agent",
     });
     expect((await http.search({ query: "stdio" })).items).toEqual([memory]);
-    expect((await client.listTools()).tools).toHaveLength(15);
+    expect((await client.listTools()).tools).toHaveLength(17);
   } finally {
     clearTimeout(timer);
     await client.close();

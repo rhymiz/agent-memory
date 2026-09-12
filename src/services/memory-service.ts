@@ -6,12 +6,15 @@ import type {
   MemoryUpdateInput,
   MemoryDeleteInput,
   MemoryDeleted,
+  CompactSearchInput,
+  CompactSearchResult,
 } from "../domain/contracts";
 import { AppError } from "../domain/errors";
 import type { MemoryRepository } from "../repositories/memory-repository";
 import type { UnitOfWork } from "../repositories/sqlite-store";
 import { ActivityService, type Clock } from "./activity-service";
 import { cosine, normalized, type EmbeddingModel } from "../domain/embedding";
+import { projectCollection, projectExcerpt } from "../domain/projections";
 
 export class MemoryService {
   private readonly pending = new Set<Promise<unknown>>();
@@ -91,6 +94,27 @@ export class MemoryService {
   }
   search(input: SearchInput): Promise<{ items: Memory[] }> {
     return this.track(() => this.retrieve(input));
+  }
+  async searchCompact(input: CompactSearchInput): Promise<CompactSearchResult> {
+    const limit = input.limit ?? 8;
+    const { items } = await this.search({
+      projectId: input.projectId,
+      query: input.query,
+      limit: limit + 1,
+    });
+    return projectCollection(
+      items,
+      limit,
+      input.maxBytes ?? 12_000,
+      (memory, bytes) =>
+        projectExcerpt(memory.content, input.query, bytes, (excerpt) => ({
+          id: memory.id,
+          type: memory.type,
+          version: memory.version,
+          updatedAt: memory.updatedAt,
+          excerpt,
+        })),
+    );
   }
   private async retrieve(input: SearchInput): Promise<{ items: Memory[] }> {
     if (!/[\p{L}\p{N}]/u.test(input.query)) return { items: [] };

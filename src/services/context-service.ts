@@ -15,8 +15,11 @@ export class ContextService {
     private readonly activity: ActivityService,
     private readonly now: Clock,
   ) {}
+  find(input: ProjectInput): ProjectContext | null {
+    return this.repository.get(input.projectId);
+  }
   get(input: ProjectInput): ProjectContext {
-    const context = this.repository.get(input.projectId);
+    const context = this.find(input);
     if (!context)
       throw new AppError(
         "PROJECT_NOT_FOUND",
