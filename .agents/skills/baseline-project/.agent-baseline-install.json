@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "package_version": "0.4.0",
+  "files": {
+    "SKILL.md": "874c8f0033cbc6193c9e57a8ce6af86bc855e3a2ee16cf9126a0fc86cc5c14fd",
+    "references/audit.md": "7dcfca9ed53945caeab6d9746dee8effd46c1754170213466979a76144c931b7",
+    "references/evaluate.md": "fbd15d53eb8420af5c14bd144ca0770790091ede149318d01f7f31e486b59922",
+    "references/maintain.md": "4f0f6b1de7d88d819bf87cb7b099e372ef719abf9953ed6f4a8185fee7707283",
+    "references/outcomes.md": "3181dfbd336e6d5680e56cfbda86d1ab7f92b7254b28f90b42fb4408f2a38068",
+    "references/project-record.md": "f29143f60f3102814830946c362e5215486a007cc9e578570595caad8241a437"
+  }
+}

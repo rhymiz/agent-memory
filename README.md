@@ -355,6 +355,19 @@ HTTP / MCP → application services → repository interfaces → bun:sqlite
 
 The tests cover domain transitions, transaction rollback, HTTP boundaries, all MCP tools/resources on the pinned protocol, stdio/HTTP shared state, independent process coordination, persistence/restart and rejection of a second database owner.
 
+## Repository development
+
+Start with [AGENTS.md](AGENTS.md) and the relevant
+[development contracts](docs/development.md). This repository uses Agent Baseline
+for maintained guidance and evidence drift, and agent-memory for discoveries,
+decision history, and coordination. Their [joint workflow](docs/agent-instructions.md#working-in-this-repository)
+keeps repository rules canonical and shared context concise.
+
+With uv and Python 3.11+ available, `bun run baseline:check` checks evidence
+freshness; `bun run baseline:verify` also validates guidance and runs the existing
+application checks. See the development contracts for prerequisites and drift
+review before recording a new baseline.
+
 Reusable agent instructions: [docs/agent-instructions.md](docs/agent-instructions.md).
 
 The maintained [shared-agent-memory skill](skills/shared-agent-memory/SKILL.md)

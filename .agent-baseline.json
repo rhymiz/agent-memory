@@ -1,0 +1,211 @@
+{
+  "schema_version": 2,
+  "artifacts": [
+    {
+      "path": "AGENTS.md",
+      "sources": [
+        {
+          "path": "package.json",
+          "json_pointer": "/scripts"
+        },
+        {
+          "path": "package.json",
+          "json_pointer": "/engines"
+        },
+        {
+          "path": "README.md",
+          "heading": "Domain guarantees"
+        },
+        "docs/development.md",
+        "docs/agent-instructions.md",
+        "skills/shared-agent-memory/SKILL.md",
+        "docs/outcome-tracking.md"
+      ]
+    },
+    {
+      "path": "README.md",
+      "sources": [
+        {
+          "path": "package.json",
+          "json_pointer": "/scripts"
+        },
+        {
+          "path": "package.json",
+          "json_pointer": "/engines"
+        },
+        "src/domain/contracts.ts",
+        "src/config.ts",
+        "src/application.ts",
+        "src/services/memory-service.ts",
+        "src/services/claim-service.ts",
+        "src/services/context-service.ts",
+        "src/services/decision-service.ts",
+        "src/services/briefing-service.ts",
+        "src/domain/resource.ts",
+        "src/domain/projections.ts",
+        "src/embeddings/manifest.ts",
+        "src/mcp/server.ts",
+        "src/mcp/tools.ts",
+        "src/api/router.ts",
+        "scripts/build.ts",
+        "scripts/verify-binary.ts",
+        "docs/development.md",
+        "docs/agent-instructions.md"
+      ]
+    },
+    {
+      "path": "docs/development.md",
+      "sources": [
+        {
+          "path": "README.md",
+          "heading": "Domain guarantees"
+        },
+        "src/application.ts",
+        "src/domain/contracts.ts",
+        "src/domain/lease.ts",
+        "src/domain/projections.ts",
+        "src/api/router.ts",
+        "src/mcp/tools.ts",
+        "src/client/memory-client.ts",
+        "src/repositories/sqlite-store.ts",
+        "src/services/memory-service.ts",
+        "src/db/database.ts",
+        "tests/helpers.ts",
+        "tests/http.test.ts",
+        "tests/mcp.test.ts",
+        "tests/domain.test.ts",
+        "tests/claim-renewal.test.ts",
+        "tests/memory-mutations.test.ts",
+        "tests/semantic.test.ts",
+        "tests/process.test.ts",
+        "tests/compact-search.test.ts",
+        "tests/briefing.test.ts",
+        "scripts/verify-binary.ts",
+        "tsconfig.json",
+        {
+          "path": "package.json",
+          "json_pointer": "/scripts"
+        },
+        {
+          "path": "package.json",
+          "json_pointer": "/engines"
+        }
+      ]
+    },
+    {
+      "path": "docs/agent-instructions.md",
+      "sources": [
+        "AGENTS.md",
+        "docs/development.md",
+        "skills/shared-agent-memory/SKILL.md",
+        "skills/shared-agent-memory/references/identity.md",
+        "skills/shared-agent-memory/references/retrieval.md",
+        "skills/shared-agent-memory/references/claims.md",
+        "skills/shared-agent-memory/references/knowledge.md",
+        ".agents/skills/baseline-project/SKILL.md",
+        ".agents/skills/baseline-project/references/maintain.md",
+        "docs/outcome-tracking.md"
+      ]
+    },
+    {
+      "path": "skills/shared-agent-memory/SKILL.md",
+      "sources": [
+        "src/mcp/tools.ts",
+        "src/mcp/server.ts",
+        "skills/shared-agent-memory/references/identity.md",
+        "skills/shared-agent-memory/references/retrieval.md",
+        "skills/shared-agent-memory/references/claims.md",
+        "skills/shared-agent-memory/references/knowledge.md"
+      ]
+    },
+    {
+      "path": "skills/shared-agent-memory/references/identity.md",
+      "sources": ["docs/agent-instructions.md", "src/domain/contracts.ts"]
+    },
+    {
+      "path": "skills/shared-agent-memory/references/retrieval.md",
+      "sources": [
+        "src/domain/contracts.ts",
+        "src/domain/projections.ts",
+        "src/services/briefing-service.ts",
+        "src/services/memory-service.ts",
+        "src/services/activity-service.ts",
+        "src/repositories/activity-repository.ts",
+        "tests/briefing.test.ts",
+        "tests/compact-search.test.ts"
+      ]
+    },
+    {
+      "path": "skills/shared-agent-memory/references/claims.md",
+      "sources": [
+        "src/domain/lease.ts",
+        "src/domain/resource.ts",
+        "src/services/claim-service.ts",
+        "src/config.ts",
+        "tests/claim-renewal.test.ts",
+        "tests/domain.test.ts"
+      ]
+    },
+    {
+      "path": "skills/shared-agent-memory/references/knowledge.md",
+      "sources": [
+        "src/services/memory-service.ts",
+        "src/services/context-service.ts",
+        "src/services/decision-service.ts",
+        "tests/memory-mutations.test.ts",
+        "tests/domain.test.ts"
+      ]
+    },
+    {
+      "path": ".agents/skills/baseline-project/SKILL.md",
+      "sources": [
+        ".agents/skills/baseline-project/.agent-baseline-install.json",
+        ".agents/skills/baseline-project/references/audit.md",
+        ".agents/skills/baseline-project/references/evaluate.md",
+        ".agents/skills/baseline-project/references/maintain.md",
+        ".agents/skills/baseline-project/references/project-record.md",
+        ".agents/skills/baseline-project/references/outcomes.md"
+      ]
+    },
+    {
+      "path": "docs/outcome-tracking.md",
+      "sources": [
+        "AGENTS.md",
+        "docs/agent-instructions.md",
+        "skills/shared-agent-memory/references/knowledge.md",
+        "skills/shared-agent-memory/references/retrieval.md",
+        "src/domain/contracts.ts",
+        "src/services/memory-service.ts",
+        "tests/memory-mutations.test.ts",
+        "tests/compact-search.test.ts",
+        "tests/briefing.test.ts",
+        ".agents/skills/baseline-project/references/outcomes.md"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "codex-guidance-routing",
+      "argv": [
+        "uv",
+        "tool",
+        "run",
+        "--from",
+        "agent-baseline==0.4.0",
+        "agent-baseline",
+        "doctor",
+        ".",
+        "--agent",
+        "codex"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 120
+    },
+    {
+      "name": "application-checks",
+      "argv": ["bun", "run", "check"],
+      "cwd": ".",
+      "timeout_seconds": 600
+    }
+  ]
+}
