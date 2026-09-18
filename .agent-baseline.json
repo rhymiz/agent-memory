@@ -49,8 +49,20 @@
         "src/api/router.ts",
         "scripts/build.ts",
         "scripts/verify-binary.ts",
+        "scripts/verify-binary.sh",
+        "src/embeddings/asset-sources.ts",
+        "install.sh",
+        "tests/install.test.ts",
+        ".github/workflows/release.yml",
         "docs/development.md",
-        "docs/agent-instructions.md"
+        "docs/agent-instructions.md",
+        "src/domain/pagination.ts",
+        "src/repositories/inspection-repository.ts",
+        "src/services/inspection-service.ts",
+        "src/repositories/decision-repository.ts",
+        "src/db/migrations/004_decision_search.sql",
+        "scripts/evaluate-retrieval.ts",
+        "scripts/lib/retrieval-evaluation.ts"
       ]
     },
     {
@@ -81,6 +93,10 @@
         "tests/compact-search.test.ts",
         "tests/briefing.test.ts",
         "scripts/verify-binary.ts",
+        "scripts/verify-binary.sh",
+        "install.sh",
+        "tests/install.test.ts",
+        ".github/workflows/release.yml",
         "tsconfig.json",
         {
           "path": "package.json",
@@ -89,7 +105,18 @@
         {
           "path": "package.json",
           "json_pointer": "/engines"
-        }
+        },
+        "src/domain/pagination.ts",
+        "src/repositories/inspection-repository.ts",
+        "src/services/inspection-service.ts",
+        "src/repositories/decision-repository.ts",
+        "src/db/migrations/004_decision_search.sql",
+        "tests/inspection.test.ts",
+        "tests/search-filters.test.ts",
+        "tests/claim-batches.test.ts",
+        "tests/decision-search.test.ts",
+        "tests/retrieval-evaluation.test.ts",
+        "scripts/lib/retrieval-evaluation.ts"
       ]
     },
     {
@@ -132,7 +159,12 @@
         "src/services/activity-service.ts",
         "src/repositories/activity-repository.ts",
         "tests/briefing.test.ts",
-        "tests/compact-search.test.ts"
+        "tests/compact-search.test.ts",
+        "src/repositories/decision-repository.ts",
+        "src/services/inspection-service.ts",
+        "tests/inspection.test.ts",
+        "tests/search-filters.test.ts",
+        "tests/decision-search.test.ts"
       ]
     },
     {
@@ -143,7 +175,8 @@
         "src/services/claim-service.ts",
         "src/config.ts",
         "tests/claim-renewal.test.ts",
-        "tests/domain.test.ts"
+        "tests/domain.test.ts",
+        "tests/claim-batches.test.ts"
       ]
     },
     {
@@ -153,7 +186,9 @@
         "src/services/context-service.ts",
         "src/services/decision-service.ts",
         "tests/memory-mutations.test.ts",
-        "tests/domain.test.ts"
+        "tests/domain.test.ts",
+        "docs/development.md",
+        "tests/retrieval-evaluation.test.ts"
       ]
     },
     {
@@ -179,7 +214,9 @@
         "tests/memory-mutations.test.ts",
         "tests/compact-search.test.ts",
         "tests/briefing.test.ts",
-        ".agents/skills/baseline-project/references/outcomes.md"
+        ".agents/skills/baseline-project/references/outcomes.md",
+        "scripts/lib/retrieval-evaluation.ts",
+        "tests/retrieval-evaluation.test.ts"
       ]
     }
   ],

@@ -80,6 +80,7 @@ export class BriefingService {
       "memories",
       "claims",
       "activity",
+      "decisions",
     ];
     const result: ProjectBriefing = { projectId: input.projectId };
     const overhead =
@@ -90,6 +91,7 @@ export class BriefingService {
     );
     if (sections.includes("memories")) {
       result.memories = await this.memories.searchCompact({
+        ...input.memoryFilter,
         projectId: input.projectId,
         query: input.query,
         limit: 5,
@@ -135,6 +137,7 @@ export class BriefingService {
         projectId: input.projectId,
         status: "active",
         limit: 6,
+        query: input.query,
       });
       result.decisions = projectCollection(items, 5, bytes, (item, available) =>
         projectExcerpt(item.decision, input.query, available, (excerpt) => ({

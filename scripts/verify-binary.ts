@@ -22,9 +22,10 @@ import {
   projectBriefing,
 } from "../src/domain/contracts";
 
-// macOS supplies an OS-enforced network policy. No inference/network mocks are used.
-if (process.platform !== "darwin")
-  throw new Error("This offline packaging check requires macOS sandbox-exec.");
+// scripts/verify-binary.sh isolates the Linux client and daemon's network.
+// Each daemon also gets a filesystem sandbox. No inference/network mocks are used.
+if (process.platform !== "darwin" && process.platform !== "linux")
+  throw new Error("This offline packaging check requires macOS or Linux.");
 const root = await realpath(resolve(import.meta.dir, ".."));
 const directory = await mkdtemp(join(tmpdir(), "agent-memory-offline-"));
 const binary = join(directory, "memd");
@@ -33,8 +34,26 @@ const profile = `(version 1)(allow default)(deny network*)
   (allow network-inbound (local ip "localhost:*"))
   (allow network-outbound (remote ip "localhost:*"))
   (deny file-read* (subpath ${JSON.stringify(root)}))`;
+const sandbox =
+  process.platform === "darwin"
+    ? ["/usr/bin/sandbox-exec", "-p", profile]
+    : [
+        "bwrap",
+        "--die-with-parent",
+        "--bind",
+        "/",
+        "/",
+        "--dev-bind",
+        "/dev",
+        "/dev",
+        "--proc",
+        "/proc",
+        "--tmpfs",
+        root,
+        "--",
+      ];
 const options = {
-  command: ["/usr/bin/sandbox-exec", "-p", profile, binary],
+  command: [...sandbox, binary],
   env: {
     AGENT_MEMORY_RUNTIME_DIR: join(directory, "runtime"),
     PATH: "/usr/bin:/bin",
@@ -45,11 +64,14 @@ const dbPath = join(directory, "memory.sqlite");
 let daemon: Awaited<ReturnType<typeof startDaemon>> | undefined;
 let mcp: Client | undefined;
 try {
+  const sourceProbe = Bun.spawnSync(
+    [...sandbox, "/bin/cat", join(root, "package.json")],
+    { cwd: directory },
+  );
+  assert.notEqual(sourceProbe.exitCode, 0, "Sandbox must deny source access");
   const networkProbe = Bun.spawnSync(
     [
-      "/usr/bin/sandbox-exec",
-      "-p",
-      profile,
+      ...sandbox,
       "/usr/bin/curl",
       "--noproxy",
       "*",
@@ -71,7 +93,7 @@ try {
     agentId: "a",
   });
   const health = await client.health();
-  assert.equal(health.version, "0.5.0");
+  assert.equal(health.version, "0.6.0");
   const memory = await client.remember({
     type: "fact",
     content:
@@ -86,7 +108,38 @@ try {
   await mcp.connect(
     new StreamableHTTPClientTransport(new URL("/mcp", daemon.baseUrl)),
   );
-  assert.equal((await mcp.listTools()).tools.length, 17);
+  assert.equal((await mcp.listTools()).tools.length, 22);
+  assert.deepEqual((await client.listProjects()).items, [
+    { projectId: "offline" },
+  ]);
+  assert.deepEqual((await client.listMemories({ types: ["fact"] })).items, [
+    memory,
+  ]);
+  assert.equal((await client.corpusStats()).embeddings.memories, 1);
+  assert.deepEqual(
+    (await client.search({ query, types: ["result"] })).items,
+    [],
+  );
+  assert.deepEqual((await client.search({ query, types: ["fact"] })).items, [
+    memory,
+  ]);
+  const decision = await client.recordDecision({
+    subject: "Public profiles",
+    decision: "Permit anonymous visitors",
+  });
+  assert.deepEqual((await client.listDecisions({ query: "anonymous" })).items, [
+    decision,
+  ]);
+  assert.equal(
+    (await client.getBriefing({ query: "anonymous" })).decisions?.items[0]?.id,
+    decision.id,
+  );
+  const batch = await client.acquireClaims({
+    resources: ["file:a.ts", "file:generated/b.ts"],
+  });
+  assert.equal(batch.claims.length, 2);
+  assert.equal(batch.advisories[0]?.kind, "generated-resources");
+  await client.releaseClaims(batch.claims.map((claim) => claim.id));
   const acquired = await client.acquireClaim({
     resource: "feature:default-lease",
   });
@@ -174,6 +227,10 @@ try {
     agentId: "b",
   });
   assert.deepEqual((await restarted.search({ query })).items, [memory]);
+  assert.deepEqual(
+    (await restarted.listDecisions({ query: "anonymous" })).items,
+    [decision],
+  );
   const updated = await restarted.updateMemory(memory.id, {
     expectedVersion: 1,
     content: "Invoices are retained for seven years.",
@@ -197,7 +254,7 @@ try {
     [],
   );
   console.log(
-    "PASS: standalone binary, fresh cache, blocked external network/source access, HTTP/MCP full and compact semantic retrieval, bounded briefing, initial lease schedules and batch renewal, restart, cache repair, update and delete",
+    "PASS: standalone binary, fresh cache, blocked external network/source access, HTTP/MCP full and compact semantic retrieval, filters, operator inspection, decision search, bounded briefing, batch acquisition/release/renewal, restart, cache repair, update and delete",
   );
 } finally {
   await mcp?.close();

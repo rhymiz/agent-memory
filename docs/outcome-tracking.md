@@ -17,8 +17,9 @@ procedure or introducing a new API record type.
 
 - **Find a case:** use `memory_search` with `projectId: "agent-memory"`, a small
   `limit`, and a query combining `Outcome follow-up` with the affected path,
-  workflow, or finding. Inspect the returned content and type; search has no type
-  or assessment filter. Include matching cases in task-start retrieval.
+  workflow, or finding. Use `types: ["observation"]` when supported, then inspect
+  the full content; assessment remains a content convention, not a supported
+  status filter. Include matching cases in task-start retrieval.
   Follow the [retrieval rules](../skills/shared-agent-memory/references/retrieval.md)
   when expanding bounded results or using a briefing or compact search.
 - **Read and create:** use `memory_get` with `projectId` and `memoryId` for the full
@@ -40,6 +41,15 @@ result by memory ID; link the maintained rule by repository path. Case content i
 observational evidence. New lasting rules follow the
 [baseline refresh workflow](agent-instructions.md#working-in-this-repository).
 A passing suite does not grade the producing workflow as improved.
+
+For retrieval follow-ups, compare the same judged project questions using the
+README's `retrieval:evaluate` procedure. Record expected-answer coverage, first
+useful rank, precision, and known stale hits, with the case judgments and query
+scope. Type proportions and text length are diagnostics, not success criteria.
+For coordination, compare claimed resources with actual writes and concurrent
+ownership; renewed holds longer than the initial TTL are valid. Use supported
+operator reads for corpus inspection rather than live SQLite/WAL copies. Keep
+assessment pending until a comparable task/window supplies the required evidence.
 
 State the records, revisions, and runs actually inspected. Bounded search results
 or activity feeds cannot establish that every follow-up was assessed. If the

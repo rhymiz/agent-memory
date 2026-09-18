@@ -47,6 +47,20 @@ export class SqliteDecisionRepository implements DecisionRepository {
     );
   }
   list(input: DecisionsInput) {
+    if (input.query !== undefined) {
+      const words = input.query.match(/[\p{L}\p{N}\p{M}_]+/gu) ?? [];
+      if (!words.length) return [];
+      const match = words.map((word) => `"${word}"`).join(" OR ");
+      return this.store.all(
+        decisionSchema,
+        `SELECT d.id, d.project_id AS projectId, d.agent_id AS agentId, d.subject,
+          d.decision, d.reasoning, d.status, d.supersedes_id AS supersedesId, d.created_at AS createdAt
+         FROM decisions_fts JOIN decisions d ON d.rowid = decisions_fts.rowid
+         WHERE decisions_fts MATCH ? AND d.project_id = ? AND d.status = ?
+         ORDER BY bm25(decisions_fts), d.created_at DESC, d.id DESC LIMIT ?`,
+        [match, input.projectId, input.status ?? "active", input.limit ?? 50],
+      );
+    }
     return this.store.all(
       decisionSchema,
       `${select} WHERE project_id = ? AND (? IS NULL OR status = ?) ORDER BY created_at DESC, rowid DESC LIMIT ?`,

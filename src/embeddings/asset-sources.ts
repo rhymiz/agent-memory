@@ -20,13 +20,15 @@ export function assetSources(): AssetSource[] {
     process.arch,
   );
   const files = [
-    // The macOS addon links libonnxruntime.1.dylib; the package also ships an
-    // identical fully-versioned copy that is unnecessary in the executable.
+    // Bundle the CPU runtime only, regardless of optional CUDA downloads in
+    // node_modules. macOS also ships a duplicate fully-versioned library.
     ...(process.platform === "darwin"
       ? ["onnxruntime_binding.node", "libonnxruntime.1.dylib"]
-      : readdirSync(native).filter((name) =>
-          /\.node$|\.so(\.\d+)*$|\.dll$/.test(name),
-        )
+      : process.platform === "linux"
+        ? ["onnxruntime_binding.node", "libonnxruntime.so.1"]
+        : readdirSync(native).filter((name) =>
+            /\.node$|\.so(\.\d+)*$|\.dll$/.test(name),
+          )
     ).map((name) => ({ name, path: join(native, name) })),
     ...readdirSync(join(root, "licenses")).map((name) => ({
       name,

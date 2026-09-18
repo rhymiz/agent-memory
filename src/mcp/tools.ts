@@ -39,10 +39,43 @@ const destructive = { ...write, destructiveHint: true };
 
 export function registerTools(server: McpServer, app: Application): void {
   server.registerTool(
+    "projects_list",
+    {
+      description:
+        "Inspect project IDs present in the daemon. Ascending keyset pages; pass nextCursor as after until null. Operator discovery, not automatic task context.",
+      inputSchema: c.pageInput,
+      outputSchema: c.projectPage,
+      annotations: read,
+    },
+    (input) => result(() => app.inspection.projects(input)),
+  );
+  server.registerTool(
+    "corpus_stats",
+    {
+      description:
+        "Read consistent corpus counts by memory type, decision status, activity category, lease state and embedding coverage. Omit projectId for the corpus or provide it for one project. Does not return content or mutate leases.",
+      inputSchema: c.inspectionInput,
+      outputSchema: c.corpusStats,
+      annotations: read,
+    },
+    (input) => result(() => app.inspection.stats(input)),
+  );
+  server.registerTool(
+    "memory_list",
+    {
+      description:
+        "Inspect full project memories without a search query. Filter by types, updatedSince and minImportance. Ascending ID pages; pass nextCursor as after until null. Pages reflect current state, not a frozen export.",
+      inputSchema: c.memoryListInput,
+      outputSchema: c.memoryPage,
+      annotations: read,
+    },
+    (input) => result(() => app.memories.list(input)),
+  );
+  server.registerTool(
     "project_briefing",
     {
       description:
-        "Start project work with bounded context, relevant memories, active claims and knowledge changes. Request the decisions section for architecture work. Excerpts and hasMore disclose omissions; expand relevant records before changing them. Does not acquire claims.",
+        "Start project work with bounded context, relevant memories, active claims, matching active decisions and knowledge changes. memoryFilter restricts memory retrieval. All sections are included by default. Excerpts and hasMore disclose omissions. Does not acquire claims.",
       inputSchema: c.briefingInput,
       outputSchema: c.projectBriefing,
       annotations: read,
@@ -53,7 +86,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "memory_search_compact",
     {
       description:
-        "Find project memories with verbatim excerpts within maxBytes of UTF-8 JSON (default 12000). hasMore indicates omitted hits; excerpt.truncated indicates omitted text. Use memory_get for full details before corrections or deletion.",
+        "Find project memories with verbatim excerpts within maxBytes of UTF-8 JSON (default 12000). Optional types, updatedSince and minImportance filter candidates before ranking. hasMore indicates omitted hits; excerpt.truncated indicates omitted text. Use memory_get before mutations.",
       inputSchema: c.compactSearchInput,
       outputSchema: c.compactSearchResult,
       annotations: read,
@@ -64,7 +97,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "memory_remember",
     {
       description:
-        "Store new reusable project knowledge. Correct existing knowledge with memory_update; remove obsolete or duplicate knowledge with memory_delete.",
+        "Store a verified reusable claim with its applicability and evidence pointers. Skip routine completion receipts. Correct existing knowledge with memory_update; remove only obsolete or duplicate knowledge with memory_delete.",
       inputSchema: c.rememberInput,
       outputSchema: c.memorySchema,
       annotations: write,
@@ -75,7 +108,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "memory_search",
     {
       description:
-        "Search project knowledge by meaning and exact terms using local hybrid retrieval. Use a natural-language question or task description; include identifiers when relevant. Results are project scoped and limited.",
+        "Search project memories by meaning and exact terms. Optional types, updatedSince and minImportance filter both retrieval paths before ranking. Defaults include all memories; types do not certify relevance. Search accepted decision records separately with decisions_list query.",
       inputSchema: c.searchInput,
       outputSchema: c.memoriesResult,
       annotations: read,
@@ -119,12 +152,34 @@ export function registerTools(server: McpServer, app: Application): void {
     "claim_acquire",
     {
       description:
-        "Claim a resource before shared edits. Omit ttlSeconds for the daemon default. Save the claim ID and schedule.renewAfter; renew the owned set with claims_renew when due, then release after work. CLAIM_CONFLICT includes the current owner, even for your own existing lease.",
+        "Claim a resource before shared edits. Omit ttlSeconds for the daemon default. Save the claim ID and schedule.renewAfter; renew the owned set with claims_renew when due, then release after work. Check returned advisories against the intended writes. CLAIM_CONFLICT includes the current owner, even for your own existing lease.",
       inputSchema: c.acquireInput,
       outputSchema: c.claimGranted,
       annotations: write,
     },
     (input) => result(() => app.claims.acquire(input)),
+  );
+  server.registerTool(
+    "claims_acquire",
+    {
+      description:
+        "Atomically claim 1–500 exact resources for the current write set. Any conflict rejects the whole batch. Normalized duplicates are invalid. Omit ttlSeconds for the daemon default. Retain every claim ID and the shared schedule; renew together when due. Check returned advisories against the intended writes. Directory claims do not cover children.",
+      inputSchema: c.acquireClaimsInput,
+      outputSchema: c.claimsGranted,
+      annotations: write,
+    },
+    (input) => result(() => app.claims.acquireMany(input)),
+  );
+  server.registerTool(
+    "claims_release",
+    {
+      description:
+        "Atomically release 1–500 active claims owned by this agent in one project. A missing, expired or non-owned claim rejects the whole batch; reread ownership before retrying. Emits one event retaining all released IDs and resources.",
+      inputSchema: c.releaseClaimsInput,
+      outputSchema: c.claimsReleased,
+      annotations: write,
+    },
+    (input) => result(() => app.claims.releaseMany(input)),
   );
   server.registerTool(
     "claim_release",
@@ -205,7 +260,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "decisions_list",
     {
       description:
-        "Read recent project decisions, optionally filtering by active or superseded status.",
+        "Read project decisions. Without query, list newest first with optional status. With query, rank matching words across subject, decision and reasoning; default status is active. Use concise keywords, not FTS syntax. This is lexical search, separate from memory hybrid search.",
       inputSchema: c.decisionsInput,
       outputSchema: c.decisionsResult,
       annotations: read,

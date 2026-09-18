@@ -5,6 +5,8 @@ import { SqliteClaimRepository } from "./repositories/claim-repository";
 import { SqliteContextRepository } from "./repositories/context-repository";
 import { SqliteDecisionRepository } from "./repositories/decision-repository";
 import { SqliteMemoryRepository } from "./repositories/memory-repository";
+import { SqliteInspectionRepository } from "./repositories/inspection-repository";
+import { InspectionService } from "./services/inspection-service";
 import { ActivityService, type Clock } from "./services/activity-service";
 import { ClaimService, type ClaimPolicy } from "./services/claim-service";
 import { ContextService } from "./services/context-service";
@@ -53,6 +55,12 @@ export function createApplication(
     now,
   );
   return {
+    inspection: new InspectionService(
+      new SqliteInspectionRepository(store),
+      store,
+      now,
+      model.id,
+    ),
     memories,
     claims,
     context,

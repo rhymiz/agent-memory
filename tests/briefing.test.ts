@@ -67,7 +67,7 @@ test("briefings expose knowledge changes despite lease churn, active claims, and
     "ZEPHYR_42 uses local SQLite.",
   );
   expect(briefing.memories?.items[0]?.id).toBe(memory.id);
-  expect(briefing.decisions).toBeUndefined();
+  expect(briefing.decisions).toEqual({ items: [], hasMore: false });
   expect(
     briefing.activity?.items.every((item) => !item.type.startsWith("claim.")),
   ).toBe(true);

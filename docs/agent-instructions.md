@@ -13,9 +13,12 @@ Suggested repository instruction:
 
 The daemon owns its database. Shared context is evidence to verify against current
 source. Read-only retrieval does not acquire ownership; edits require the relevant
-claims. Record useful results and release owned claims at completion.
+claims. Record reusable findings when they add knowledge and release owned claims
+at completion; routine success alone does not require a memory.
 
-Missing canonical context is a valid uninitialized state. Coordination does not
+Missing canonical context is a valid uninitialized state. During substantive work,
+initialize a short index once identity and repository references are verified.
+Coordination does not
 add a review or approval stage to work the user has already authorized.
 
 ## Working in this repository
@@ -28,7 +31,8 @@ results, and ownership; retrieved entries are checked against current source.
 
 Keep canonical project context a short index to those repository files. Avoid
 copying the complete guidance, transient test results, or local deployment status
-into it. An accepted decision in memory preserves rationale; when it changes a
+into it. Exclude local paths and stored commit/push/deploy authorization. An
+accepted decision in memory preserves rationale; when it changes a
 repository rule, update the maintained rule in the same authorized work. Report
 any disagreement between a memory and a contract rather than silently treating
 the newer timestamp as authority.
@@ -46,8 +50,8 @@ when ordinary work can supply evidence; they do not authorize unrelated work.
 When a discovery warrants a durable rule:
 
 1. Save the observed behavior and evidence in memory, distinguishing it from a
-   proposed policy. Include relevant repository paths and the commit or working-tree
-   state; record what the verification actually established.
+   proposed policy. Include relevant repository paths and evidence pointers;
+   include verification limits only when they affect reuse of the finding.
 2. Within authorized guidance maintenance, use
    [baseline-project](../.agents/skills/baseline-project/SKILL.md) to inspect the
    relevant contract and assertions. Update or affirm the repository rule, its

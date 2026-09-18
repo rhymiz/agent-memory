@@ -8,6 +8,7 @@ import type {
   MemoryDeleted,
   CompactSearchInput,
   CompactSearchResult,
+  MemoryListInput,
 } from "../domain/contracts";
 import { AppError } from "../domain/errors";
 import type { MemoryRepository } from "../repositories/memory-repository";
@@ -15,6 +16,7 @@ import type { UnitOfWork } from "../repositories/sqlite-store";
 import { ActivityService, type Clock } from "./activity-service";
 import { cosine, normalized, type EmbeddingModel } from "../domain/embedding";
 import { projectCollection, projectExcerpt } from "../domain/projections";
+import { page } from "../domain/pagination";
 
 export class MemoryService {
   private readonly pending = new Set<Promise<unknown>>();
@@ -95,11 +97,17 @@ export class MemoryService {
   search(input: SearchInput): Promise<{ items: Memory[] }> {
     return this.track(() => this.retrieve(input));
   }
+  list(input: MemoryListInput) {
+    return page(
+      this.repository.list(input),
+      input.limit ?? 50,
+      (memory) => memory.id,
+    );
+  }
   async searchCompact(input: CompactSearchInput): Promise<CompactSearchResult> {
     const limit = input.limit ?? 8;
     const { items } = await this.search({
-      projectId: input.projectId,
-      query: input.query,
+      ...input,
       limit: limit + 1,
     });
     return projectCollection(
@@ -132,6 +140,7 @@ export class MemoryService {
         input.projectId,
         this.model.id,
         this.model.dimensions,
+        input,
       )) {
         const score = cosine(query, vector);
         if (score < 0.3) continue;

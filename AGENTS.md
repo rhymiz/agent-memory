@@ -32,6 +32,9 @@ Include decisions when architecture or product direction matters.
 Acquire ownership for the current work phase with the daemon default TTL and
 claim the exact files being edited. Follow the returned `renewAfter`, renew the
 owned set in one call when due, record useful results, and release owned claims.
+Use batch acquire/release when available. Store reusable claims and evidence
+pointers; routine completion does not require a memory. Follow the skill's
+knowledge rules for short context indexes and correction of resolved handoffs.
 Skip this workflow for trivial standalone questions. Follow the skill's identity,
 conflict, and connection-failure rules.
 

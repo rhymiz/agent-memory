@@ -45,7 +45,27 @@ export const rememberInput = actorInput.extend({
   importance: z.number().min(0).max(1).optional(),
   metadata: metadata.optional(),
 });
-export const searchInput = projectInput.extend({
+export const memoryFilter = z.strictObject({
+  types: z
+    .array(memoryType)
+    .min(1)
+    .max(memoryType.options.length)
+    .refine(
+      (types) => new Set(types).size === types.length,
+      "Memory types must be unique.",
+    )
+    .optional(),
+  updatedSince: timestamp.optional(),
+  minImportance: z.number().min(0).max(1).optional(),
+});
+export const pageInput = z.strictObject({
+  limit: limit.optional(),
+  after: identifier.optional(),
+});
+export const memoryListInput = projectInput
+  .extend(memoryFilter.shape)
+  .extend(pageInput.shape);
+export const searchInput = projectInput.extend(memoryFilter.shape).extend({
   query: z.string().trim().min(1).max(1000),
   limit: limit.optional(),
 });
@@ -82,6 +102,9 @@ export const acquireInput = actorInput.extend({
   intent: z.string().trim().min(1).max(2000).optional(),
   ttlSeconds: ttlSeconds.optional(),
 });
+export const acquireClaimsInput = acquireInput.omit({ resource: true }).extend({
+  resources: z.array(acquireInput.shape.resource).min(1).max(500),
+});
 export const releaseInput = z.strictObject({
   claimId: identifier,
   agentId: identifier,
@@ -100,6 +123,7 @@ export const renewClaimsInput = actorInput.extend({
     ),
   ttlSeconds: ttlSeconds.optional(),
 });
+export const releaseClaimsInput = renewClaimsInput.omit({ ttlSeconds: true });
 export const leaseSchedule = z.strictObject({
   expiresAt: timestamp,
   renewAfter: timestamp,
@@ -128,6 +152,7 @@ export const decisionInput = projectInput.extend(decisionBody.shape);
 export const decisionsInput = projectInput.extend({
   status: decisionStatus.optional(),
   limit: limit.optional(),
+  query: searchInput.shape.query.optional(),
 });
 export const activityInput = projectInput.extend({
   limit: limit.optional(),
@@ -199,10 +224,35 @@ export const decisionsResult = z.strictObject({
 export const activityResult = z.strictObject({
   items: z.array(activitySchema),
 });
+export const claimAdvisory = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("large-claim-set"),
+    message: z.string(),
+    activeClaimCount: z.number().int().positive(),
+    threshold: z.number().int().positive(),
+  }),
+  z.strictObject({
+    kind: z.literal("generated-resources"),
+    message: z.string(),
+    resources: z.array(z.string()).min(1),
+  }),
+]);
+export type ClaimAdvisory = z.infer<typeof claimAdvisory>;
 export const claimGranted = z.strictObject({
   granted: z.literal(true),
   claim: claimSchema,
   schedule: leaseSchedule,
+  advisories: z.array(claimAdvisory).default([]),
+});
+export const claimsGranted = z.strictObject({
+  granted: z.literal(true),
+  claims: z.array(claimSchema).min(1),
+  schedule: leaseSchedule,
+  advisories: z.array(claimAdvisory).default([]),
+});
+export const claimsReleased = z.strictObject({
+  released: z.literal(true),
+  claimIds: z.array(identifier).min(1),
 });
 export const claimReleased = z.strictObject({
   released: z.literal(true),
@@ -212,6 +262,37 @@ export const healthSchema = z.strictObject({
   status: z.literal("ok"),
   database: z.literal("ok"),
   version: z.string(),
+});
+export function pageSchema<T extends z.ZodType>(item: T) {
+  return z.strictObject({
+    items: z.array(item),
+    nextCursor: identifier.nullable(),
+  });
+}
+export const memoryPage = pageSchema(memorySchema);
+export const projectPage = pageSchema(projectInput);
+export const inspectionInput = z.strictObject({
+  projectId: identifier.optional(),
+});
+const count = z.number().int().nonnegative();
+export const corpusStats = z.strictObject({
+  asOf: timestamp,
+  projects: count,
+  memories: z.strictObject({
+    total: count,
+    contentBytes: count,
+    byType: z.array(z.strictObject({ type: memoryType, count })),
+  }),
+  decisions: z.strictObject({ active: count, superseded: count }),
+  contexts: count,
+  claims: z.strictObject({ active: count, expired: count }),
+  activity: z.strictObject({ knowledge: count, coordination: count }),
+  embeddings: z.strictObject({
+    modelId: z.string(),
+    memories: count,
+    chunks: count,
+    models: z.array(z.string()),
+  }),
 });
 
 export const textExcerpt = z.strictObject({
@@ -257,6 +338,7 @@ export const briefingInput = projectInput.extend({
   query: searchInput.shape.query,
   maxBytes: responseBudget.optional(),
   since: timestamp.optional(),
+  memoryFilter: memoryFilter.optional(),
   sections: z
     .array(briefingSection)
     .min(1)
@@ -276,6 +358,12 @@ export const projectBriefing = projectInput.extend({
 });
 
 export type Memory = z.infer<typeof memorySchema>;
+export type MemoryFilter = z.infer<typeof memoryFilter>;
+export type MemoryListInput = z.infer<typeof memoryListInput>;
+export type PageInput = z.infer<typeof pageInput>;
+export type Page<T> = { items: T[]; nextCursor: string | null };
+export type InspectionInput = z.infer<typeof inspectionInput>;
+export type CorpusStats = z.infer<typeof corpusStats>;
 export type Claim = z.infer<typeof claimSchema>;
 export type ProjectContext = z.infer<typeof contextSchema>;
 export type Decision = z.infer<typeof decisionSchema>;
@@ -288,6 +376,10 @@ export type MemoryUpdateInput = z.infer<typeof memoryUpdateInput>;
 export type MemoryDeleteInput = z.infer<typeof memoryDeleteInput>;
 export type MemoryDeleted = z.infer<typeof memoryDeleted>;
 export type AcquireInput = z.infer<typeof acquireInput>;
+export type AcquireClaimsInput = z.infer<typeof acquireClaimsInput>;
+export type ClaimsGranted = z.infer<typeof claimsGranted>;
+export type ReleaseClaimsInput = z.infer<typeof releaseClaimsInput>;
+export type ClaimsReleased = z.infer<typeof claimsReleased>;
 export type ReleaseInput = z.infer<typeof releaseInput>;
 export type RenewInput = z.infer<typeof renewInput>;
 export type RenewClaimsInput = z.infer<typeof renewClaimsInput>;

@@ -81,7 +81,9 @@ export class MemoryClient {
       );
     return parsed.data;
   }
-  private query(values: Record<string, string | number | undefined>): string {
+  private query(
+    values: Record<string, string | number | string[] | undefined>,
+  ): string {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(values))
       if (value !== undefined) params.set(key, String(value));
@@ -100,10 +102,32 @@ export class MemoryClient {
       ...input,
       projectId: this.options.projectId,
     });
+    const { query, ...filters } = parsed;
     return this.request(
       "GET",
-      `/memories/search${this.query({ projectId: parsed.projectId, q: parsed.query, limit: parsed.limit })}`,
+      `/memories/search${this.query({ ...filters, q: query })}`,
       c.memoriesResult,
+    );
+  }
+  listMemories(input: Omit<c.MemoryListInput, "projectId"> = {}) {
+    const parsed = c.memoryListInput.parse({
+      ...input,
+      projectId: this.options.projectId,
+    });
+    return this.request("GET", `/memories${this.query(parsed)}`, c.memoryPage);
+  }
+  listProjects(input: c.PageInput = {}) {
+    return this.request(
+      "GET",
+      `/projects${this.query(c.pageInput.parse(input))}`,
+      c.projectPage,
+    );
+  }
+  corpusStats(input: c.InspectionInput = {}) {
+    return this.request(
+      "GET",
+      `/stats${this.query(c.inspectionInput.parse(input))}`,
+      c.corpusStats,
     );
   }
   getMemory(memoryId: string) {
@@ -122,14 +146,10 @@ export class MemoryClient {
       ...input,
       projectId: this.options.projectId,
     });
+    const { query, ...filters } = parsed;
     return this.request(
       "GET",
-      `/memories/search/compact${this.query({
-        projectId: parsed.projectId,
-        q: parsed.query,
-        limit: parsed.limit,
-        maxBytes: parsed.maxBytes,
-      })}`,
+      `/memories/search/compact${this.query({ ...filters, q: query })}`,
       c.compactSearchResult,
     );
   }
@@ -172,6 +192,22 @@ export class MemoryClient {
       "/claims",
       c.claimGranted,
       c.acquireInput.parse({ ...input, ...this.actor }),
+    );
+  }
+  acquireClaims(input: Omit<c.AcquireClaimsInput, "projectId" | "agentId">) {
+    return this.request(
+      "POST",
+      "/claims/acquire",
+      c.claimsGranted,
+      c.acquireClaimsInput.parse({ ...input, ...this.actor }),
+    );
+  }
+  releaseClaims(claimIds: string[]) {
+    return this.request(
+      "POST",
+      "/claims/release",
+      c.claimsReleased,
+      c.releaseClaimsInput.parse({ claimIds, ...this.actor }),
     );
   }
   releaseClaim(claimId: string) {
@@ -240,9 +276,10 @@ export class MemoryClient {
   }
   listDecisions(input: Omit<c.DecisionsInput, "projectId"> = {}) {
     const parsed = c.decisionsInput.omit({ projectId: true }).parse(input);
+    const { query, ...filters } = parsed;
     return this.request(
       "GET",
-      `${this.projectPath}/decisions${this.query(parsed)}`,
+      `${this.projectPath}/decisions${this.query({ ...filters, q: query })}`,
       c.decisionsResult,
     );
   }

@@ -45,19 +45,26 @@ function query<T>(url: URL, schema: z.ZodType<T>, extra: Params = {}): T {
       );
     values[key] = value;
   }
-  for (const key of ["limit", "since", "maxBytes"]) {
+  for (const key of ["limit", "since", "maxBytes", "updatedSince"]) {
     const value = values[key];
     if (typeof value === "string" && /^\d+$/.test(value))
       values[key] = Number(value);
   }
   if (
+    typeof values.minImportance === "string" &&
+    /^\d+(\.\d+)?$/.test(values.minImportance)
+  )
+    values.minImportance = Number(values.minImportance);
+  if (typeof values.types === "string") values.types = values.types.split(",");
+  if (
     url.pathname === "/memories/search" ||
-    url.pathname === "/memories/search/compact"
+    url.pathname === "/memories/search/compact" ||
+    url.pathname.endsWith("/decisions")
   ) {
     if (Object.hasOwn(values, "query"))
       throw new AppError(
         "INVALID_REQUEST",
-        "Use the q query parameter for memory search.",
+        "Use the q query parameter for search.",
       );
     values.query = values.q;
     delete values.q;
@@ -76,6 +83,24 @@ export function createRouter(
   app: Application,
 ): (request: Request) => Promise<Response> {
   const routes: Route[] = [
+    {
+      method: "GET",
+      path: /^\/projects$/,
+      handle: (_, url) =>
+        Response.json(app.inspection.projects(query(url, c.pageInput))),
+    },
+    {
+      method: "GET",
+      path: /^\/stats$/,
+      handle: (_, url) =>
+        Response.json(app.inspection.stats(query(url, c.inspectionInput))),
+    },
+    {
+      method: "GET",
+      path: /^\/memories$/,
+      handle: (_, url) =>
+        Response.json(app.memories.list(query(url, c.memoryListInput))),
+    },
     {
       method: "GET",
       path: /^\/health$/,
@@ -141,6 +166,23 @@ export function createRouter(
         Response.json(app.claims.acquire(await body(request, c.acquireInput)), {
           status: 201,
         }),
+    },
+    {
+      method: "POST",
+      path: /^\/claims\/acquire$/,
+      handle: async (request) =>
+        Response.json(
+          app.claims.acquireMany(await body(request, c.acquireClaimsInput)),
+          { status: 201 },
+        ),
+    },
+    {
+      method: "POST",
+      path: /^\/claims\/release$/,
+      handle: async (request) =>
+        Response.json(
+          app.claims.releaseMany(await body(request, c.releaseClaimsInput)),
+        ),
     },
     {
       method: "GET",

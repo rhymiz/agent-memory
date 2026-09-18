@@ -2,7 +2,37 @@
 
 A local Bun daemon for shared agent knowledge and coordination. One process owns one SQLite database. REST, MCP over HTTP, and optional MCP stdio call the same application services.
 
-## Run
+## Install on Linux
+
+Releases include standalone Linux x64 and ARM64 executables with Bun and the
+offline model bundled. No Bun, Node, or GPU installation is needed. Use a glibc
+distribution (Ubuntu 22.04 or later is the release verification target); Alpine
+and other musl distributions are not supported.
+
+Once a release has been published:
+
+```sh
+curl -fsSL https://github.com/rhymiz/agent-memory/releases/latest/download/install.sh -o install-agent-memory.sh
+sh install-agent-memory.sh
+~/.local/bin/memd
+```
+
+The installer requires `curl` and `sha256sum`, detects the CPU architecture,
+verifies the release checksum, and atomically installs `memd` into `~/.local/bin`.
+Add that directory to `PATH` to run `memd` by name. It installs the executable;
+run it yourself or configure your service manager to keep it running.
+
+To select a release or installation directory:
+
+```sh
+sh install-agent-memory.sh --version 0.6.0 --bin-dir "$HOME/.local/bin"
+```
+
+Rerun the installer to upgrade, then restart your daemon. The installer does not
+change the database or stop a running process. Remove the installed executable to
+uninstall; persistent data remains in `~/.agent-memory`.
+
+## Run from source
 
 Requires Bun 1.4.2 or later.
 
@@ -12,14 +42,14 @@ bun run model:download # One build/setup download; inference is fully offline
 bun start
 ```
 
-REST listens at `http://127.0.0.1:8787`; MCP listens at `http://127.0.0.1:8787/mcp`. The database defaults to `~/.agent-memory/memory.sqlite`. Startup applies bundled migrations and indexes existing memories before accepting requests. Logs are JSON lines on stderr.
+REST listens at `http://127.0.0.1:8787`; MCP listens at `http://127.0.0.1:8787/mcp`. The database defaults to `~/.agent-memory/memory.sqlite`. Startup applies bundled migrations and indexes existing memories before accepting requests. Application logs are JSON lines on stderr; native runtime diagnostics may be plain text.
 
 ```sh
 curl http://127.0.0.1:8787/health
 bun run check   # TypeScript and all integration tests
 bun run demo    # Temporary daemon plus two independent agent processes
 bun run build   # Standalone executable with model: dist/memd
-bun run verify:binary # macOS: fresh cache, external network and source access denied
+bun run verify:binary # macOS/Linux: fresh cache, external network and source access denied
 ```
 
 The demo verifies shared observations, activity visibility, claim conflict and handoff, and context version 3 → 4 with a stale-write rejection. It cleans up its temporary database and processes.
@@ -52,6 +82,21 @@ project's indexed chunks.
 
 Creating or correcting a memory completes indexing before returning success.
 
+Search and memory listing accept the same optional filters: `types` (one or more
+memory types), `updatedSince` (inclusive Unix milliseconds), and `minImportance`
+(0–1). Both lexical and semantic candidates are filtered before ranking or limits.
+Omitting filters searches every type. An importance threshold excludes unscored
+records. Ranking remains reciprocal rank fusion with creation time breaking ties;
+importance and age do not silently boost scores. Types are not quality judgments:
+useful answers may be stored as results, and old constraints may still apply.
+
+Accepted decision records have a separate lexical index over subject, decision,
+and reasoning. `decisions_list({projectId, query})` / `listDecisions({query})`
+rank records matching any query word with FTS5 BM25, defaulting to active decisions.
+Use concise keywords; query text is escaped rather than interpreted as FTS syntax.
+Omit query to retain the recent-decision listing, including both statuses unless
+filtered. Decision records are not embedded or returned by memory search.
+
 ## Compact agent context
 
 `memory_search_compact` / `MemoryClient.searchCompact()` use the same hybrid
@@ -70,21 +115,26 @@ text is incomplete. Tight budgets can return an empty collection with `hasMore`
 set to true. Both MCP representations contain the same data.
 
 `project_briefing` / `MemoryClient.getBriefing()` compose existing services into
-bounded context, relevant memories, active claims, and recent knowledge changes:
+bounded context, relevant memories, active claims, matching decisions, and recent
+knowledge changes:
 
 ```ts
 const briefing = await memory.getBriefing({
   query: "Change the pagination contract",
   maxBytes: 20000,
+  memoryFilter: { types: ["fact", "constraint", "observation"] },
   sections: ["context", "memories", "claims", "activity", "decisions"],
 });
 ```
 
-Omit `sections` to request all except decisions. Each requested section is a
+Omit `sections` to request all five sections. Each requested section is a
 bounded collection with its own omission flag; unrequested sections are absent.
 Context contains at most one record: an empty collection with `hasMore: false`
-means context has not been initialized. This is not an error or a request to
-create context. Decisions are the most recent active decisions, not query-ranked.
+means context has not been initialized. This is not an error; the skill describes
+when enough verified project information exists to initialize a short index.
+Decisions are active lexical matches for the briefing query, selected before the
+section limit. `memoryFilter` affects the memories section only; activity still
+shows recent knowledge changes of all memory types.
 Activity excludes lease events before applying its limit, so lease churn cannot
 hide knowledge changes. Its memory/context excerpts reflect current referenced
 versions rather than historical event content; deleted memories are not recovered.
@@ -94,22 +144,83 @@ Sections contain at most five items, except claims (ten) and context (one).
 Use `since` for an inclusive activity timestamp. Expand relevant omissions with
 the existing full-read tools or a narrower briefing. A brief is an orientation
 view, not an atomic snapshot or a substitute for claim acquisition/version checks.
-No new persistence tables, summarization model, or claim acquisitions are involved.
+Briefings do not acquire claims or generate summaries.
 Deletes remove vectors in the same transaction. Inference or transaction failure
 leaves the previous memory and indexes intact. Startup backfills missing or
 outdated embeddings in resumable batches without changing memory versions or
 creating duplicate activity. Changing the pinned model or chunking contract
 requires a new model identity and automatically rebuilds the index.
 
-### Standalone executable
+## Knowledge maintenance and inspection
+
+Store reusable claims with their applicability and evidence pointers. A result
+should state a useful outcome or unresolved handoff in one sentence plus pointers;
+routine test, commit, and clean-tree receipts need no memory. Correct resolved
+handoffs in place, preserving useful rationale. Use `files`, `commit`, and `pr`
+for ordinary metadata and keep retrieval-critical identifiers in content. The
+[knowledge workflow](skills/shared-agent-memory/references/knowledge.md) covers
+types, context initialization, evidence, correction, and cautious consolidation.
+
+`projects_list` / `listProjects()` discover projects represented in any domain,
+including projects with only context, decisions, claims, or activity. `memory_list`
+/ `listMemories()` return full project memories without a search query. Both use
+ascending keyset pages: defaults are 50 records, maximum 200; pass `nextCursor` as
+`after` until it is null. Memory lists accept the search filters. Cursors are the
+last returned project ID or memory ID and remain usable after that record is
+deleted. Pages reflect current state, not a frozen export across calls; concurrent
+inserts before a cursor can be missed. Use these operator reads deliberately,
+with small pages, rather than injecting a corpus dump into every task.
+
+`corpus_stats` / `corpusStats()` return aggregate counts in one database transaction.
+Supply `projectId` to restrict the scope. Counts cover memory types and UTF-8
+content bytes, decision status, contexts, active/expired leases, knowledge and
+coordination events, and embedding coverage for the running model. `asOf` is the
+lease cutoff time; `embeddings.models` lists all models attached to current memory
+versions. These reads do not expire claims or create activity. Event counts count
+batch operations once, not once per resource. The daemon owns storage; do not copy
+live SQLite/WAL files for inspection.
+
+Measure retrieval against judged questions, not type ratios:
+
+```sh
+bun run retrieval:evaluate /path/to/cases.json [http://127.0.0.1:8787]
+```
+
+The JSON file is an array of cases containing `name`, `projectId`, `query`, and
+`relevantMemoryIds` and/or `relevantDecisionIds`. Optional fields are `limit`
+(default 5, maximum 50), `memoryFilter`, `decisionQuery`, and `staleMemoryIds`.
+For example, with IDs from records you have read and judged:
+
+```json
+[
+  {
+    "name": "cursor contract",
+    "projectId": "example",
+    "query": "pagination cursor",
+    "relevantMemoryIds": ["mem_verified"],
+    "staleMemoryIds": ["mem_obsolete"]
+  }
+]
+```
+
+The read-only evaluator reports returned IDs, precision at K (relevant hits divided
+by requested K), recall, reciprocal rank, missing expected records, and known stale
+hits. Curate complete relevance judgments for each case; unlisted relevant records
+would underestimate precision. An absent judgment group scores null, not zero.
+Compare the same questions and judgments before/after a change. These measurements
+cover the selected questions; they do not prove corpus-wide or coding improvement.
+
+## Standalone executable
 
 `bun run build` fetches missing build assets at a pinned revision, verifies their
 SHA-256 checksums, and embeds the weights, tokenizer, native CPU runtime, and
 [distribution notices](licenses/README.md) into `dist/memd`. The resulting macOS
-ARM64 executable is approximately 445 MB. It needs neither Bun nor `node_modules`
-on the destination machine. Build on the target OS and architecture; macOS ARM64
-is verified here. Cross-compiling native inference assets is not supported by
-this build script.
+ARM64 executable is approximately 445 MB; Linux sizes vary by architecture. It
+needs neither Bun nor `node_modules` on the destination machine. Build on the
+target OS and architecture so the native inference libraries match the binary.
+Cross-compiling native inference assets is not supported by this build script.
+Linux builds bundle only the CPU runtime; use `ONNXRUNTIME_NODE_INSTALL=skip`
+during dependency installation to skip ONNX's optional CUDA download.
 
 Native ONNX loading requires physical files. On first launch the executable
 extracts its embedded assets into a versioned runtime directory (roughly another
@@ -119,10 +230,26 @@ process; no background inference process or worker is introduced. Only build/set
 requires network access. Missing source-development assets cause startup to fail
 with instructions to run `bun run model:download`.
 
-The macOS packaging check launches a copied executable outside this checkout with
-a fresh cache, denies reads from the source repository and all external network
+The packaging check launches a copied executable outside this checkout with a
+fresh cache, denies reads from the source repository and all external network
 connections, and exercises HTTP/MCP retrieval, restart, cache repair, correction,
-and deletion. `bun run check` also covers real model inference and long memories.
+and deletion. macOS uses `sandbox-exec`; Linux requires `bubblewrap`, `curl`, and
+permission to create user/network namespaces. `bun run check` also covers real
+model inference and long memories.
+
+### Publishing Linux releases
+
+The [Linux release workflow](.github/workflows/release.yml) runs native Ubuntu
+22.04 x64 and ARM64 builds for pull requests, pushes to `main`, version tags, and
+manual dispatches. Each architecture must pass the application checks, standalone
+offline verification, and installation of its compiled binary. Successful builds
+are available as workflow artifacts.
+
+To publish, commit the intended changes with the release version in `package.json`,
+then push a matching tag such as `v0.6.0`. A mismatched tag fails verification. Once
+both architectures pass, the workflow creates a GitHub release containing
+`memd-linux-x64`, `memd-linux-arm64`, `SHA256SUMS`, and `install.sh`. Branch and
+manual runs verify builds without publishing a release.
 
 ## Configuration
 
@@ -209,36 +336,85 @@ Search results also include `version`, so an agent can update or delete a result
 
 ## HTTP API
 
-Bodies use `Content-Type: application/json`. Responses contain camelCase properties, decoded JSON metadata, explicit nulls for missing optional record values, and Unix milliseconds for timestamps. Unknown input fields are rejected. Create endpoints return complete records; claim acquisition wraps the claim in `{ granted: true, claim, schedule: { expiresAt, renewAfter } }`. Clients validating the acquisition envelope must accept its new `schedule` field; update the bundled TypeScript client alongside the daemon.
+Bodies use `Content-Type: application/json`. Responses contain camelCase properties, decoded JSON metadata, explicit nulls for missing optional record values, and Unix milliseconds for timestamps. Unknown input fields are rejected. Create endpoints return complete records; claim acquisition wraps the claim in `{ granted: true, claim, schedule: { expiresAt, renewAfter }, advisories }`. Update strict clients alongside the daemon to accept the acquisition envelope. The current TypeScript client accepts older responses without advisories as an empty list.
 
-| Method and path                | Request                                                                            |
-| ------------------------------ | ---------------------------------------------------------------------------------- |
-| `GET /health`                  | —                                                                                  |
-| `POST /memories`               | `{ projectId, agentId, type, content, importance?, metadata? }`                    |
-| `GET /memories/search`         | `?projectId=…&q=…&limit=10`                                                        |
-| `GET /memories/search/compact` | `?projectId=…&q=…&limit=8&maxBytes=12000`                                          |
-| `GET /memories/:id`            | `?projectId=…`                                                                     |
-| `PATCH /memories/:id`          | `{ projectId, agentId, expectedVersion, content?, type?, importance?, metadata? }` |
-| `DELETE /memories/:id`         | JSON body `{ projectId, agentId, expectedVersion }`                                |
-| `POST /claims`                 | `{ projectId, agentId, resource, intent?, ttlSeconds? }`                           |
-| `GET /claims`                  | `?projectId=…&resource=…`                                                          |
-| `POST /claims/renew`           | `{ projectId, agentId, claimIds, ttlSeconds? }`                                    |
-| `POST /claims/:id/renew`       | `{ agentId, ttlSeconds? }`                                                         |
-| `DELETE /claims/:id`           | JSON body `{ agentId }`                                                            |
-| `GET /projects/:id/context`    | —                                                                                  |
-| `POST /projects/:id/briefing`  | `{ query, maxBytes?, sections?, since? }` (read-only)                              |
-| `PUT /projects/:id/context`    | `{ agentId, expectedVersion, content }`                                            |
-| `POST /projects/:id/decisions` | `{ agentId, subject, decision, reasoning?, supersedesId? }`                        |
-| `GET /projects/:id/decisions`  | `?status=active&limit=50`                                                          |
-| `GET /projects/:id/activity`   | `?limit=50&since=…&agentId=…&type=…&category=knowledge`                            |
+| Method and path                | Request                                                                                |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| `GET /health`                  | —                                                                                      |
+| `GET /projects`                | `?limit=50&after=…`                                                                    |
+| `GET /stats`                   | `?projectId=…` (omit for the corpus)                                                   |
+| `GET /memories`                | `?projectId=…&limit=50&after=…&types=fact,constraint&updatedSince=…&minImportance=0.7` |
+| `POST /memories`               | `{ projectId, agentId, type, content, importance?, metadata? }`                        |
+| `GET /memories/search`         | `?projectId=…&q=…&limit=10`                                                            |
+| `GET /memories/search/compact` | `?projectId=…&q=…&limit=8&maxBytes=12000`                                              |
+| `GET /memories/:id`            | `?projectId=…`                                                                         |
+| `PATCH /memories/:id`          | `{ projectId, agentId, expectedVersion, content?, type?, importance?, metadata? }`     |
+| `DELETE /memories/:id`         | JSON body `{ projectId, agentId, expectedVersion }`                                    |
+| `POST /claims`                 | `{ projectId, agentId, resource, intent?, ttlSeconds? }`                               |
+| `POST /claims/acquire`         | `{ projectId, agentId, resources, intent?, ttlSeconds? }`                              |
+| `POST /claims/release`         | `{ projectId, agentId, claimIds }`                                                     |
+| `GET /claims`                  | `?projectId=…&resource=…`                                                              |
+| `POST /claims/renew`           | `{ projectId, agentId, claimIds, ttlSeconds? }`                                        |
+| `POST /claims/:id/renew`       | `{ agentId, ttlSeconds? }`                                                             |
+| `DELETE /claims/:id`           | JSON body `{ agentId }`                                                                |
+| `GET /projects/:id/context`    | —                                                                                      |
+| `POST /projects/:id/briefing`  | `{ query, maxBytes?, sections?, since?, memoryFilter? }` (read-only)                   |
+| `PUT /projects/:id/context`    | `{ agentId, expectedVersion, content }`                                                |
+| `POST /projects/:id/decisions` | `{ agentId, subject, decision, reasoning?, supersedesId? }`                            |
+| `GET /projects/:id/decisions`  | `?status=active&limit=50&q=…`                                                          |
+| `GET /projects/:id/activity`   | `?limit=50&since=…&agentId=…&type=…&category=knowledge`                                |
 
-Full list/search responses use `{ items: [...] }`; compact collections add `hasMore`. Full search defaults to 10 results; decisions and activity default to 50. Their limits range from 1 to 200. Claims list all active claims matching the requested scope. Activity's optional category is `knowledge` or `coordination` and combines with the existing filters. Project and agent IDs use letters, numbers, dots, underscores and hyphens, up to 128 characters, starting with a letter or number. No project registration is required.
+Memory and project inspection pages return `{ items, nextCursor }`. Other full
+list/search responses use `{ items }`; compact collections add `hasMore`. Both
+memory search routes accept `types` as comma-separated values, `updatedSince`, and
+`minImportance`; MCP and JSON briefing filters use an array for `types`. Full search
+defaults to 10 results; decisions and activity default to 50. Their limits range
+from 1 to 200. Claims list all active claims matching the requested scope.
+Activity's optional category is `knowledge` or `coordination` and combines with the
+existing filters. Project and agent IDs use letters, numbers, dots, underscores and
+hyphens, up to 128 characters, starting with a letter or number. No project
+registration is required.
 
 Errors have `{ error: { code, message, details? } }`. Claim conflicts additionally return `{ granted: false, conflict: { claimId, agentId, resource, intent, expiresAt } }` with HTTP 409. Canonical codes and DTO schemas live in `src/domain/`.
 
 Memory patches require at least one editable field. Omitted fields remain unchanged; `null` clears `importance` or `metadata`. Metadata is replaced as a whole. Both patch and delete require a positive `expectedVersion`: a stale version returns HTTP 409 `MEMORY_VERSION_CONFLICT`, while an absent memory or wrong project returns HTTP 404 `MEMORY_NOT_FOUND`. Delete returns `{ deleted: true, memoryId }`.
 
-## Claim renewal without per-file loops
+## Claim batches and renewal
+
+Use `claims_acquire({projectId, agentId, resources, intent?, ttlSeconds?})` /
+`MemoryClient.acquireClaims()` to acquire 1–500 resources atomically. The response
+is `{granted: true, claims, schedule, advisories}` with every claim ID and one shared schedule.
+Resources are normalized and sorted; duplicates after normalization are rejected.
+A conflict rejects the entire batch, including any cleanup events from that
+transaction. Individual acquisition uses the same implementation.
+
+`claims_release({projectId, agentId, claimIds})` / `releaseClaims()` releases
+1–500 claims atomically. Missing, expired, foreign-project or non-owned IDs reject
+the whole batch. Reread ownership and release the remaining owned set after a
+failure. Successful multi-resource acquisition/release each emit one event with
+all claim IDs, resources and expiry times. These batches reduce call/event volume
+without changing exact-resource conflict semantics.
+
+Claim the actual current write set, including generated files and lockfiles when
+they will be modified. Reading files does not require file ownership. Named
+`phase:`/`feature:` claims are agreed work-stream mutexes and do not protect child
+files. Large claim sets merit checking against actual writes; there is no arbitrary
+resource cap beyond each batch's request limit and no automatic lease-event purge.
+
+Single and batch acquisition return non-blocking, typed `advisories`:
+
+- `large-claim-set` includes a message, `activeClaimCount`, and `threshold: 100`
+  when this agent owns more than 100 active resources in this project after
+  acquisition. Expired leases and other owners/projects do not count. This is a
+  review threshold, not evidence that the resources are unnecessary.
+- `generated-resources` includes a message and the newly acquired `resources`
+  whose normalized file/directory paths contain a directory named `generated`.
+  This literal path heuristic does not inspect the filesystem or recognize every
+  generated output. Shared generated files still need ownership when modified.
+
+Check advisories against the current phase's intended writes and release unused
+claims. A successful acquisition remains granted; advisories create no additional
+activity events and do not require permission to continue.
 
 The daemon default is **30 minutes**, with a maximum of 60 minutes. Omit
 `ttlSeconds` to use the configured default; pass it only for a deliberate override.
@@ -246,8 +422,8 @@ Claim only the files needed for the current phase of work, and release them prom
 when finished. Claims still expire when an agent crashes; the daemon does not
 renew leases in the background.
 
-Use `MemoryClient.acquireClaim()` to retain the initial schedule as well as the
-claim; `claim()` remains a convenience method returning only the claim. At the
+Use `MemoryClient.acquireClaim()` to retain the initial schedule and advisories
+alongside the claim; `claim()` remains a convenience method returning only the claim. At the
 earliest owned `schedule.renewAfter`, renew the whole set in one call:
 
 ```ts
@@ -316,7 +492,9 @@ Tools:
 memory_remember          memory_search
 memory_search_compact    project_briefing
 memory_get               memory_update           memory_delete
+memory_list              projects_list           corpus_stats
 claim_acquire            claim_release           claim_renew
+claims_acquire           claims_release
 claims_list              claims_renew            project_context_get     project_context_update
 decision_record          decisions_list          activity_recent
 ```
@@ -351,7 +529,13 @@ Memories persist until explicitly deleted; context, decisions and activity persi
 HTTP / MCP → application services → repository interfaces → bun:sqlite
 ```
 
-`application.ts` wires one set of services and repositories. `domain/contracts.ts` defines transport schemas and inferred types; SQLite rows and SDK responses are validated at their respective boundaries. `ClaimService.acquire()` is the single claim implementation. Transactions cover the domain mutation and its events. SQL migrations are imported as text and bundled into the standalone binary.
+`application.ts` wires one set of services and repositories. `domain/contracts.ts`
+defines transport schemas and inferred types; SQLite rows and SDK responses are
+validated at their respective boundaries. Single and batch acquisition share
+`ClaimService.acquireMany()`. Transactions cover each domain mutation and its
+events. SQL migrations are imported as text and bundled into the standalone binary.
+Migration 4 builds the decision text index from existing records without changing
+their identity or supersession history.
 
 The tests cover domain transitions, transaction rollback, HTTP boundaries, all MCP tools/resources on the pinned protocol, stdio/HTTP shared state, independent process coordination, persistence/restart and rejection of a second database owner.
 

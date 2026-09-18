@@ -4,6 +4,8 @@ import {
   type MemoryGetInput,
   type MemoryDeleteInput,
   type SearchInput,
+  type MemoryFilter,
+  type MemoryListInput,
 } from "../domain/contracts";
 import { SqliteStore, storedMetadata } from "./sqlite-store";
 import { z } from "zod";
@@ -15,6 +17,7 @@ export interface MemoryRepository {
   update(memory: Memory, expectedVersion: number): boolean;
   delete(input: MemoryDeleteInput): boolean;
   search(input: SearchInput): Memory[];
+  list(input: MemoryListInput): Memory[];
   replaceEmbeddings(
     memory: Memory,
     modelId: string,
@@ -24,6 +27,7 @@ export interface MemoryRepository {
     projectId: string,
     modelId: string,
     dimensions: number,
+    filter?: MemoryFilter,
   ): { memory: Memory; vector: Float32Array }[];
   unindexed(modelId: string, limit: number): Memory[];
 }
@@ -31,6 +35,20 @@ const row = memorySchema.extend({ metadata: storedMetadata });
 const columns = `m.id, m.project_id AS projectId, m.agent_id AS agentId,
   m.type, m.content, m.importance, m.metadata, m.created_at AS createdAt,
   m.version, m.updated_by AS updatedBy, m.updated_at AS updatedAt`;
+const filterSql = `(? IS NULL OR m.type IN (SELECT value FROM json_each(?)))
+  AND (? IS NULL OR m.updated_at >= ?) AND (? IS NULL OR m.importance >= ?)`;
+function filterParams(filter: MemoryFilter) {
+  const types =
+    filter.types === undefined ? null : JSON.stringify(filter.types);
+  return [
+    types,
+    types,
+    filter.updatedSince ?? null,
+    filter.updatedSince ?? null,
+    filter.minImportance ?? null,
+    filter.minImportance ?? null,
+  ];
+}
 
 export class SqliteMemoryRepository implements MemoryRepository {
   constructor(private readonly store: SqliteStore) {}
@@ -59,14 +77,16 @@ export class SqliteMemoryRepository implements MemoryRepository {
     projectId: string,
     modelId: string,
     dimensions: number,
+    filter: MemoryFilter = {},
   ): { memory: Memory; vector: Float32Array }[] {
     return this.store
       .all(
         row.extend({ vector: z.instanceof(Uint8Array) }),
         `SELECT ${columns}, e.vector FROM memories m JOIN memory_embeddings e
        ON m.id = e.memory_id AND m.version = e.memory_version
-       WHERE m.project_id = ? AND e.model_id = ? ORDER BY m.created_at DESC, m.id DESC, e.chunk_index`,
-        [projectId, modelId],
+       WHERE m.project_id = ? AND e.model_id = ? AND ${filterSql}
+       ORDER BY m.created_at DESC, m.id DESC, e.chunk_index`,
+        [projectId, modelId, ...filterParams(filter)],
       )
       .map(({ vector, ...memory }) => ({
         memory,
@@ -149,9 +169,24 @@ export class SqliteMemoryRepository implements MemoryRepository {
       row,
       `SELECT ${columns}
       FROM memories_fts JOIN memories m ON m.rowid = memories_fts.rowid
-      WHERE memories_fts MATCH ? AND m.project_id = ?
+      WHERE memories_fts MATCH ? AND m.project_id = ? AND ${filterSql}
       ORDER BY bm25(memories_fts), m.created_at DESC, m.rowid DESC LIMIT ?`,
-      [match, input.projectId, input.limit ?? 10],
+      [match, input.projectId, ...filterParams(input), input.limit ?? 10],
+    );
+  }
+  list(input: MemoryListInput): Memory[] {
+    return this.store.all(
+      row,
+      `SELECT ${columns} FROM memories m
+      WHERE m.project_id = ? AND (? IS NULL OR m.id > ?) AND ${filterSql}
+      ORDER BY m.id LIMIT ?`,
+      [
+        input.projectId,
+        input.after ?? null,
+        input.after ?? null,
+        ...filterParams(input),
+        (input.limit ?? 50) + 1,
+      ],
     );
   }
 }

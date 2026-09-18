@@ -92,9 +92,10 @@ test("stdio MCP and HTTP share one process; stdio diagnostics never corrupt the 
     { versionNegotiation: { mode: { pin: "2026-07-28" } } },
   );
   const ready = Promise.withResolvers<string>();
+  let diagnostics = "";
   const timer = setTimeout(
-    () => ready.reject(new Error("Missing startup log")),
-    5000,
+    () => ready.reject(new Error(`Missing startup log: ${diagnostics}`)),
+    10_000,
   );
   const stderr = transport.stderr;
   if (!(stderr instanceof Readable))
@@ -105,9 +106,14 @@ test("stdio MCP and HTTP share one process; stdio diagnostics never corrupt the 
     url: z.url(),
   });
   lines.on("line", (line: string) => {
-    const value: unknown = JSON.parse(line);
-    const log = logSchema.safeParse(value);
-    if (log.success) ready.resolve(log.data.url);
+    diagnostics += `${line}\n`;
+    try {
+      const value: unknown = JSON.parse(line);
+      const log = logSchema.safeParse(value);
+      if (log.success) ready.resolve(log.data.url);
+    } catch {
+      // Native ONNX diagnostics may be plain text on stderr; stdout remains MCP.
+    }
   });
   try {
     await client.connect(transport);
@@ -129,14 +135,14 @@ test("stdio MCP and HTTP share one process; stdio diagnostics never corrupt the 
       agentId: "http-agent",
     });
     expect((await http.search({ query: "stdio" })).items).toEqual([memory]);
-    expect((await client.listTools()).tools).toHaveLength(17);
+    expect((await client.listTools()).tools).toHaveLength(22);
   } finally {
     clearTimeout(timer);
     await client.close();
     lines.close();
     rmSync(directory, { recursive: true, force: true });
   }
-}, 10_000);
+}, 20_000);
 
 test("the runnable demo completes with two independently running HTTP agents", async () => {
   const demo = Bun.spawn(

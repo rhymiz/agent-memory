@@ -67,6 +67,49 @@ rank preservation, Unicode budgets, and unchanged full records.
 optional reads, uninitialized context, and knowledge visibility despite lease churn.
 These assertions do not measure whether a model makes better coding decisions.
 
+Memory filters are one shared contract used by full search, compact search,
+briefings, and operator listing. Apply them to both lexical and semantic candidate
+selection before ranking and limits. [Filter tests](../tests/search-filters.test.ts)
+place a relevant record behind more than one candidate window of excluded records,
+check corrected timestamps and unscored importance, and compare HTTP/MCP results.
+Filters are optional; types and self-assigned importance do not establish quality.
+
+Decision lookup indexes subject, decision, and reasoning with FTS5; it is lexical,
+not semantic. Query matching precedes the limit and defaults to active decisions.
+Briefings include matching decisions by default. [Decision search tests](../tests/decision-search.test.ts)
+cover older matches, supersession, scope, migration backfill, and rollback.
+
+Operator reads live in [InspectionService](../src/services/inspection-service.ts).
+Statistics read all aggregates in one transaction and distinguish active from
+expired leases without cleanup. Project/memory pages use ascending keyset cursors;
+multiple pages are not an atomic export. [Inspection tests](../tests/inspection.test.ts)
+cover projects represented outside memories, deleted cursor records, scoped counts,
+current embedding coverage, and transport validation. Never bypass the running
+daemon by opening or copying its SQLite/WAL files.
+
+Batch acquisition normalizes and validates every resource before committing any
+ownership, using the same transition as single acquisition. Release validates all
+members before deletion. [Batch tests](../tests/claim-batches.test.ts) cover conflicts,
+duplicate paths, concurrent batches, foreign/expired members, event rollback, and
+per-resource audit references in compact events. Directory hierarchy remains
+unsupported. The practical claim-size criterion is correspondence with actual
+writes, including generated outputs where shared; counts alone cannot establish it.
+Acquisition advisories use the same typed response across HTTP and MCP. The size
+prompt counts this agent's active project claims after acquisition, excluding
+expired leases and other owners/projects. The generated-path prompt is a literal
+directory-name heuristic, not filesystem inspection. Tests cover the 100/101
+boundary, release, expiry, scope, normalized paths, and transport envelopes.
+
+The [knowledge guidance](../skills/shared-agent-memory/references/knowledge.md)
+requires a reusable claim, applicability, and evidence pointers. Review a proposed
+memory for those properties and for correction of an existing record before adding
+one; automated schema checks cannot establish its usefulness. The read-only
+`bun run retrieval:evaluate` runner accepts judged question/record pairs as described
+in the [README](../README.md#knowledge-maintenance-and-inspection).
+[Evaluator tests](../tests/retrieval-evaluation.test.ts) prove that missing answers
+and stale hits are measured independently of record type. Later comparable task
+evidence is still required to grade the guidance outcome.
+
 ## Verification
 
 Use Bun as specified in [package.json](../package.json). For a fresh checkout, run
@@ -91,8 +134,16 @@ they do not certify unmonitored source files.
 
 The regular suite uses temporary daemons and does not depend on the shared-memory
 service being available. For binary packaging, asset extraction, or offline-runtime
-changes, also run `bun run build` and the macOS `bun run verify:binary`; inspect
+changes, also run `bun run build` and `bun run verify:binary` on macOS or Linux; inspect
 [the verifier](../scripts/verify-binary.ts) for its exact scope. Guidance-only edits
-do not require rebuilding or restarting the installed daemon. There is currently
-no repository CI workflow; these commands are local checks. Host discovery paths
+do not require rebuilding or restarting the installed daemon.
+Linux CI in [.github/workflows/release.yml](../.github/workflows/release.yml)
+runs native x64 and ARM64 application, packaging, and installer checks. Linux
+offline verification requires `bubblewrap`, `curl`, and user/network namespaces;
+it fails rather than silently skipping isolation when those are unavailable.
+[Installer tests](../tests/install.test.ts) exercise architecture selection,
+pinned downloads, checksum rejection, and preservation of an existing binary.
+The release jobs additionally install and execute the actual compiled artifact.
+Tag publication requires both architectures to pass and a tag matching the package
+version. Local checks alone do not prove a published release. Host discovery paths
 passing validation do not prove skill loading in a fresh agent session.

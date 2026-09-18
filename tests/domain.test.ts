@@ -113,7 +113,7 @@ describe("memory and persistence", () => {
       ).toEqual([memory]);
       expect(
         reopened.query("SELECT * FROM schema_migrations").all(),
-      ).toHaveLength(3);
+      ).toHaveLength(4);
     } finally {
       reopened.close(true);
     }

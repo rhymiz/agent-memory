@@ -7,6 +7,11 @@ import type {
   RenewClaimsInput,
   ClaimsRenewed,
   ClaimGranted,
+  AcquireClaimsInput,
+  ClaimsGranted,
+  ReleaseClaimsInput,
+  ClaimsReleased,
+  ClaimAdvisory,
 } from "../domain/contracts";
 import { AppError } from "../domain/errors";
 import { normalizeResource } from "../domain/resource";
@@ -14,6 +19,8 @@ import { scheduleLease } from "../domain/lease";
 import type { ClaimRepository } from "../repositories/claim-repository";
 import type { UnitOfWork } from "../repositories/sqlite-store";
 import { ActivityService, type Clock } from "./activity-service";
+
+const largeClaimSetThreshold = 100;
 
 export interface ClaimPolicy {
   defaultTtlSeconds: number;
@@ -69,27 +76,44 @@ export class ClaimService {
     this.transaction.run(() => this.removeExpired(projectId, this.now()));
   }
   acquire(input: AcquireInput): ClaimGranted {
-    const resource = normalizeResource(input.resource);
+    const { resource, ...scope } = input;
+    const acquired = this.acquireMany({ ...scope, resources: [resource] });
+    return {
+      granted: true,
+      claim: acquired.claims[0]!,
+      schedule: acquired.schedule,
+      advisories: acquired.advisories,
+    };
+  }
+  acquireMany(input: AcquireClaimsInput): ClaimsGranted {
+    const resources = input.resources.map(normalizeResource).sort();
+    if (new Set(resources).size !== resources.length)
+      throw new AppError(
+        "INVALID_REQUEST",
+        "Resources must be unique after normalization.",
+      );
     const ttl = this.ttl(input.ttlSeconds);
     return this.transaction.run(() => {
       const now = this.now();
-      this.removeExpired(input.projectId, now, resource);
-      const current = this.repository.find(input.projectId, resource);
-      if (current) {
-        throw new AppError(
-          "CLAIM_CONFLICT",
-          "Resource is already claimed.",
-          409,
-          {
-            claimId: current.id,
-            agentId: current.agentId,
-            resource: current.resource,
-            intent: current.intent,
-            expiresAt: current.expiresAt,
-          },
-        );
+      for (const resource of resources) {
+        this.removeExpired(input.projectId, now, resource);
+        const current = this.repository.find(input.projectId, resource);
+        if (current) {
+          throw new AppError(
+            "CLAIM_CONFLICT",
+            "Resource is already claimed.",
+            409,
+            {
+              claimId: current.id,
+              agentId: current.agentId,
+              resource: current.resource,
+              intent: current.intent,
+              expiresAt: current.expiresAt,
+            },
+          );
+        }
       }
-      const claim: Claim = {
+      const claims: Claim[] = resources.map((resource) => ({
         id: `clm_${Bun.randomUUIDv7()}`,
         projectId: input.projectId,
         agentId: input.agentId,
@@ -97,14 +121,71 @@ export class ClaimService {
         intent: input.intent ?? null,
         createdAt: now,
         expiresAt: now + ttl,
-      };
-      this.repository.insert(claim);
-      this.event(claim, "claim.acquired");
+      }));
+      for (const claim of claims) this.repository.insert(claim);
+      this.batchEvent(claims, "claim.acquired");
       return {
         granted: true,
-        claim,
-        schedule: scheduleLease(claim.expiresAt, ttl),
+        claims,
+        schedule: scheduleLease(now + ttl, ttl),
+        advisories: this.advisories(claims, now),
       };
+    });
+  }
+  private advisories(claims: Claim[], now: number): ClaimAdvisory[] {
+    const first = claims[0]!;
+    const activeClaimCount = this.repository
+      .list({ projectId: first.projectId })
+      .filter(
+        (claim) => claim.agentId === first.agentId && claim.expiresAt > now,
+      ).length;
+    const advisories: ClaimAdvisory[] = [];
+    if (activeClaimCount > largeClaimSetThreshold) {
+      advisories.push({
+        kind: "large-claim-set",
+        message: `This agent now owns ${activeClaimCount} active resources in this project. Check that they match the current phase's intended writes and release unused claims.`,
+        activeClaimCount,
+        threshold: largeClaimSetThreshold,
+      });
+    }
+    const generated = claims
+      .map((claim) => claim.resource)
+      .filter((resource) => {
+        const file = resource.startsWith("file:");
+        if (!file && !resource.startsWith("directory:")) return false;
+        const path = resource.slice(resource.indexOf(":") + 1).split("/");
+        return (file ? path.slice(0, -1) : path).includes("generated");
+      });
+    if (generated.length) {
+      advisories.push({
+        kind: "generated-resources",
+        message:
+          "These paths contain a generated directory. Keep their claims when shared outputs will be modified; use isolated output for disposable build artifacts where possible.",
+        resources: generated,
+      });
+    }
+    return advisories;
+  }
+  private batchEvent(
+    claims: Claim[],
+    type: "claim.acquired" | "claim.released",
+  ): void {
+    const first = claims[0]!;
+    if (claims.length === 1) return this.event(first, type);
+    this.activity.append({
+      projectId: first.projectId,
+      agentId: first.agentId,
+      type,
+      resource: null,
+      message: `${type === "claim.acquired" ? "Acquired" : "Released"} ${claims.length} resource leases.`,
+      metadata: {
+        claimCount: claims.length,
+        claims: claims.map((claim) => ({
+          claimId: claim.id,
+          resource: claim.resource,
+          expiresAt: claim.expiresAt,
+        })),
+      },
     });
   }
   private owned(input: ReleaseInput, now: number, projectId?: string): Claim {
@@ -142,6 +223,17 @@ export class ClaimService {
       this.repository.delete(claim.id);
       this.event(claim, "claim.released");
       return { released: true, claimId: claim.id };
+    });
+  }
+  releaseMany(input: ReleaseClaimsInput): ClaimsReleased {
+    return this.transaction.run(() => {
+      const now = this.now();
+      const claims = input.claimIds.map((claimId) =>
+        this.owned({ claimId, agentId: input.agentId }, now, input.projectId),
+      );
+      for (const claim of claims) this.repository.delete(claim.id);
+      this.batchEvent(claims, "claim.released");
+      return { released: true, claimIds: claims.map((claim) => claim.id) };
     });
   }
   renew(input: RenewInput): Claim {

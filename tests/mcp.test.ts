@@ -34,19 +34,23 @@ async function call(
   return result.structuredContent;
 }
 
-test("advertises all seventeen tools with structured input and output schemas", async () => {
+test("advertises every tool with structured input and output schemas", async () => {
   const result = await mcp.listTools();
   expect(result.tools.map((tool) => tool.name).sort()).toEqual([
     "activity_recent",
     "claim_acquire",
     "claim_release",
     "claim_renew",
+    "claims_acquire",
     "claims_list",
+    "claims_release",
     "claims_renew",
+    "corpus_stats",
     "decision_record",
     "decisions_list",
     "memory_delete",
     "memory_get",
+    "memory_list",
     "memory_remember",
     "memory_search",
     "memory_search_compact",
@@ -54,6 +58,7 @@ test("advertises all seventeen tools with structured input and output schemas", 
     "project_briefing",
     "project_context_get",
     "project_context_update",
+    "projects_list",
   ]);
   expect(
     result.tools.every((tool) => tool.inputSchema && tool.outputSchema),
