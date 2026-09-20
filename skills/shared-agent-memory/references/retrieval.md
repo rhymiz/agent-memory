@@ -19,10 +19,15 @@ or `decisions_list` before relying on omitted details. Claim acquisition remains
 the atomic conflict check even when a briefing shows no competing claim.
 
 Use `memory_search_compact` for follow-up retrieval and `memory_get` for full
-records. Excerpts are verbatim windows around query terms, or leading text when
-only semantic similarity matched. They are not generated summaries. Activity
-memory/context excerpts reflect the current referenced version, not a historical
-snapshot of the event. Deleted memories have a reference but no recovered content.
+records. Excerpts retain verbatim leading text, preferring a complete sentence or
+line within the budget. Ranking still uses the full content. A preview can omit
+the answer or a later condition: expand truncated records before consequential
+conclusions, and resolve contradictions against full records and current source.
+Older daemons use query-centered windows, which can omit a leading date or scope.
+Activity memory/context excerpts reflect the current referenced version, not a
+historical snapshot. If that version's content is already shown in the briefing,
+the event keeps its reference and shows its message/type instead of repeating it.
+Deleted memories have a reference but no recovered content.
 
 When supported, memory search accepts `types`, `updatedSince` (inclusive Unix
 milliseconds), and `minImportance`. Briefings accept the same fields inside
@@ -31,6 +36,12 @@ Leave them unset when completeness matters: useful knowledge may be stored as
 `result`, an old constraint may remain valid, and unscored records are excluded by
 any importance threshold. A type filter is not a quality filter. Search with a
 concrete project concept rather than test/commit boilerplate.
+If the first search is noisy, try one focused reformulation using domain terms,
+identifiers, or the relationship needed. Inspect whether it retains known answers;
+shorter queries are not universally better. An empty result can indicate missing
+knowledge; consult source rather than inferring that the behavior does not exist.
+For policy or architecture, compare matching active decisions with observations;
+do not treat a remembered proposal or past action permission as current authority.
 
 For operator inspection, use `projects_list` and `memory_list`, passing each
 `nextCursor` as `after` until it is null. Memory listing returns full records and

@@ -6,38 +6,25 @@ export function jsonBytes(value: unknown): number {
   return encoder.encode(JSON.stringify(value)).byteLength;
 }
 
-// Excerpts remain verbatim. Prefer a query term; semantic-only hits use the lead.
-export function excerptText(
-  text: string,
-  query: string,
-  characters: number,
-): TextExcerpt {
+// Keep the lead: a matching phrase can depend on an earlier date or condition.
+export function excerptText(text: string, characters: number): TextExcerpt {
   if (text.length <= characters) return { text, truncated: false };
-  const terms = [...new Set(query.match(/[\p{L}\p{N}_]+/gu) ?? [])].sort(
-    (a, b) => b.length - a.length,
-  );
-  let matchAt = 0;
-  for (const term of terms) {
-    const match = new RegExp(term, "iu").exec(text);
-    if (match) {
-      matchAt = match.index;
-      break;
-    }
-  }
-  let start = Math.max(
-    0,
-    Math.min(matchAt - Math.floor(characters / 4), text.length - characters),
-  );
-  let end = Math.min(text.length, start + characters);
+  let end = Math.max(0, characters);
   // UTF-16 boundaries must not split a surrogate pair.
-  if (start > 0 && /[\uDC00-\uDFFF]/u.test(text[start]!)) start++;
   if (end < text.length && /[\uDC00-\uDFFF]/u.test(text[end]!)) end--;
-  return { text: text.slice(start, Math.max(start, end)), truncated: true };
+  const prefix = text.slice(0, end);
+  // Prefer a complete sentence or line when one fits; long leads still truncate.
+  let boundary = 0;
+  for (const match of text.matchAll(/[.!?](?=\s|$)|\n/gu)) {
+    const next = match.index + match[0].length;
+    if (next > end) break;
+    boundary = next;
+  }
+  return { text: prefix.slice(0, boundary || end), truncated: true };
 }
 
 export function projectExcerpt<T>(
   text: string,
-  query: string,
   maxBytes: number,
   project: (excerpt: TextExcerpt) => T,
 ): T | undefined {
@@ -47,7 +34,7 @@ export function projectExcerpt<T>(
   // Each candidate is measured after JSON escaping and UTF-8 encoding.
   while (low <= high) {
     const size = Math.floor((low + high) / 2);
-    const candidate = project(excerptText(text, query, size));
+    const candidate = project(excerptText(text, size));
     if (jsonBytes(candidate) <= maxBytes) {
       best = candidate;
       low = size + 1;

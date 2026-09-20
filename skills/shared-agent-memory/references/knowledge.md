@@ -6,6 +6,11 @@ claim, then state its applicability and the evidence needed to verify it. Prefer
 `observation` for a scoped finding. Use `decision_record` for accepted choices.
 Types describe the record; they do not certify truth, relevance, or freshness.
 
+Keep each record focused on one independently useful claim. Put conditions,
+environment, and verification date beside that claim so a bounded preview retains
+them. Separate unrelated discoveries; link detailed work reports instead of mixing
+release history, test counts, and troubleshooting into the same answer.
+
 For example: "Cursor pagination orders by (createdAt, id); preserving both fields
 prevents gaps when timestamps tie. See src/search.ts and tests/pagination.test.ts."
 Point to maintained repository contracts instead of copying their architecture.
@@ -35,6 +40,17 @@ When a handoff resolves or a commit lands, correct misleading pending/uncommitte
 claims in the existing record. Preserve useful rationale and provenance; landing
 a commit does not itself make the record disposable. Check references before
 consolidating records. Do not bulk relabel results merely to change type ratios.
+Search for earlier gap or pending records before writing completion knowledge.
+Lead the corrected record with the current state and resolution pointer; put any
+useful former state in explicitly dated history. A newer record does not suppress
+an older contradictory assertion. Record local verification, publication, and
+deployment as distinct evidence when that distinction affects reuse.
+
+Keep evaluation questions, ranked outputs, and long audit histories in external
+fixtures or reports, outside the semantic memory corpus. Quoting those questions
+in a memory can make the evaluation record outrank the answer being measured.
+Store the reusable finding and evidence pointer; retain outcome assessments in
+their existing case without copying the full evaluation dataset.
 
 On `MEMORY_VERSION_CONFLICT`, reread the full record, reconsider the latest
 content, and retry only if still appropriate. Do not merely substitute the latest

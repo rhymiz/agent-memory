@@ -14,7 +14,7 @@ test("health reports database availability and package version", async () => {
   expect(await f.client().health()).toEqual({
     status: "ok",
     database: "ok",
-    version: "0.6.0",
+    version: "0.6.1",
   });
 });
 
@@ -169,6 +169,31 @@ test("unknown route, wrong method and wrong media type use stable errors", async
   const method = await fetch(new URL("/health", f.baseUrl), { method: "PUT" });
   expect(method.status).toBe(405);
   expect(method.headers.get("allow")).toBe("GET");
+  // Literal paths are not captured as IDs by the parameterized routes.
+  const literal: [string, string][] = [
+    ["/memories/search", "GET"],
+    ["/memories/search/compact", "GET"],
+    ["/claims/renew", "POST"],
+    ["/claims/acquire", "POST"],
+    ["/claims/release", "POST"],
+  ];
+  for (const [path, allow] of literal) {
+    const shadowed = await fetch(new URL(path, f.baseUrl), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    expect(shadowed.status).toBe(405);
+    expect(shadowed.headers.get("allow")).toBe(allow);
+    expect(await shadowed.json()).toMatchObject({
+      error: { code: "METHOD_NOT_ALLOWED" },
+    });
+  }
+  const id = await fetch(new URL("/memories/mem_missing", f.baseUrl), {
+    method: "POST",
+  });
+  expect(id.status).toBe(405);
+  expect(id.headers.get("allow")).toBe("GET, PATCH, DELETE");
   expect(
     (
       await fetch(new URL("/memories", f.baseUrl), {

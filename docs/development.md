@@ -65,6 +65,11 @@ ownership grants. [Compact-search tests](../tests/compact-search.test.ts) check
 rank preservation, Unicode budgets, and unchanged full records.
 [Briefing tests](../tests/briefing.test.ts) check every section's total budget,
 optional reads, uninitialized context, and knowledge visibility despite lease churn.
+Excerpts retain leading scope and prefer sentence/line boundaries; they can still
+omit later qualifications and require expansion. Briefing activity retains event
+identity and references but substitutes the event message/type when the same
+knowledge version is already represented. The tests cover repeated revisions,
+activity-only reads, and records excluded from the memories section.
 These assertions do not measure whether a model makes better coding decisions.
 
 Memory filters are one shared contract used by full search, compact search,

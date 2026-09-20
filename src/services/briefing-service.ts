@@ -18,6 +18,12 @@ import type { ContextService } from "./context-service";
 import type { DecisionService } from "./decision-service";
 import type { MemoryService } from "./memory-service";
 
+function referenceKey(
+  reference: NonNullable<ActivityPreview["reference"]>,
+): string {
+  return JSON.stringify(reference);
+}
+
 export class BriefingService {
   constructor(
     private readonly memories: MemoryService,
@@ -106,7 +112,7 @@ export class BriefingService {
         bytes,
         (item, available) => {
           const { content, ...identity } = item;
-          return projectExcerpt(content, input.query, available, (excerpt) => ({
+          return projectExcerpt(content, available, (excerpt) => ({
             ...identity,
             excerpt,
           }));
@@ -120,15 +126,10 @@ export class BriefingService {
         bytes,
         (item, available) => {
           const { intent, ...identity } = item;
-          return projectExcerpt(
-            intent ?? "",
-            input.query,
-            available,
-            (excerpt) => ({
-              ...identity,
-              intent: intent === null ? null : excerpt,
-            }),
-          );
+          return projectExcerpt(intent ?? "", available, (excerpt) => ({
+            ...identity,
+            intent: intent === null ? null : excerpt,
+          }));
         },
       );
     }
@@ -140,7 +141,7 @@ export class BriefingService {
         query: input.query,
       });
       result.decisions = projectCollection(items, 5, bytes, (item, available) =>
-        projectExcerpt(item.decision, input.query, available, (excerpt) => ({
+        projectExcerpt(item.decision, available, (excerpt) => ({
           id: item.id,
           subject: item.subject,
           createdAt: item.createdAt,
@@ -149,6 +150,25 @@ export class BriefingService {
       );
     }
     if (sections.includes("activity")) {
+      const shown = new Set<string>();
+      for (const item of result.memories?.items ?? [])
+        if (item.excerpt.text)
+          shown.add(
+            referenceKey({
+              kind: "memory",
+              id: item.id,
+              version: item.version,
+            }),
+          );
+      for (const item of result.context?.items ?? [])
+        if (item.excerpt.text)
+          shown.add(
+            referenceKey({
+              kind: "context",
+              id: item.projectId,
+              version: item.version,
+            }),
+          );
       const { items } = this.activity.recent({
         projectId: input.projectId,
         since: input.since,
@@ -162,11 +182,19 @@ export class BriefingService {
         (event, available) => {
           const { metadata: _metadata, message: _message, ...identity } = event;
           const { text, reference } = this.change(event);
-          return projectExcerpt(text, input.query, available, (excerpt) => ({
-            ...identity,
-            excerpt,
-            reference,
-          }));
+          const key = reference ? referenceKey(reference) : null;
+          const repeated = key !== null && shown.has(key);
+          const preview = projectExcerpt(
+            repeated ? (event.message ?? event.type) : text,
+            available,
+            (excerpt) => ({
+              ...identity,
+              excerpt,
+              reference,
+            }),
+          );
+          if (key !== null && preview?.excerpt.text) shown.add(key);
+          return preview;
         },
       );
     }

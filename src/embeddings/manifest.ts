@@ -2,6 +2,7 @@ export const model = {
   repository: "onnx-community/embeddinggemma-300m-ONNX",
   revision: "5090578d9565bb06545b4552f76e6bc2c93e4a66",
   dimensions: 768,
+  maxTokens: 2048,
   chunkTokens: 384,
   overlapTokens: 48,
   // Includes the prompt, tokenization and chunking contract, not just the weights.

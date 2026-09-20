@@ -46,6 +46,12 @@ For retrieval follow-ups, compare the same judged project questions using the
 README's `retrieval:evaluate` procedure. Record expected-answer coverage, first
 useful rank, precision, and known stale hits, with the case judgments and query
 scope. Type proportions and text length are diagnostics, not success criteria.
+Keep exact queries and ranked outputs in external fixtures/reports rather than
+copying them into searchable case content. After a correction, rejudge the record's
+new version: an ID previously marked stale does not make its corrected content
+stale. Preserve both judgment revisions and the before/after evidence. The runner's
+precision at K divides by requested K; also inspect returned-count precision and
+response bytes when a query returns fewer than K results.
 For coordination, compare claimed resources with actual writes and concurrent
 ownership; renewed holds longer than the initial TTL are valid. Use supported
 operator reads for corpus inspection rather than live SQLite/WAL copies. Keep

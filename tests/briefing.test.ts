@@ -74,7 +74,7 @@ test("briefings expose knowledge changes despite lease churn, active claims, and
   const event = briefing.activity?.items.find(
     (item) => item.reference?.id === memory.id,
   );
-  expect(event?.excerpt.text).toBe(memory.content);
+  expect(event?.excerpt).toEqual({ text: "memory.created", truncated: false });
   expect(event?.reference).toEqual({
     kind: "memory",
     id: memory.id,
@@ -116,6 +116,91 @@ test("briefings expose knowledge changes despite lease churn, active claims, and
     claims: { items: [], hasMore: false },
     activity: { items: [], hasMore: false },
   });
+});
+
+test("activity retains events and references while showing each current record once", async () => {
+  const memory = await f.client().remember({
+    type: "fact",
+    content: "ZEPHYR_42 original behavior.",
+  });
+  f.advance(1);
+  const current = await f.client().updateMemory(memory.id, {
+    expectedVersion: 1,
+    content: "ZEPHYR_42 corrected behavior.",
+  });
+  const context = await f.client().updateContext({
+    expectedVersion: 0,
+    content: "ZEPHYR_42 project orientation.",
+  });
+  const full = await f.client().getBriefing({ query: "ZEPHYR_42" });
+  expect(full.memories?.items[0]?.excerpt.text).toBe(current.content);
+  expect(full.context?.items[0]?.excerpt.text).toBe(context.content);
+  const events = full.activity?.items ?? [];
+  expect(events).toHaveLength(3);
+  expect(events.map((item) => item.excerpt.text)).toEqual(
+    events.map((item) => item.type),
+  );
+  expect(
+    events
+      .filter((item) => item.reference?.id === memory.id)
+      .map((item) => item.reference?.version),
+  ).toEqual([2, 2]);
+
+  const activityOnly = await f.client().getBriefing({
+    query: "ZEPHYR_42",
+    sections: ["activity"],
+  });
+  const memoryEvents =
+    activityOnly.activity?.items.filter(
+      (item) => item.reference?.id === memory.id,
+    ) ?? [];
+  expect(memoryEvents).toHaveLength(2);
+  expect(memoryEvents[0]?.excerpt.text).toBe(current.content);
+  expect(memoryEvents[1]?.excerpt.text).toBe("memory.created");
+  expect(
+    activityOnly.activity?.items.find(
+      (item) => item.reference?.kind === "context",
+    )?.excerpt.text,
+  ).toBe(context.content);
+
+  // A record filtered out of memories still needs its content in activity.
+  const filtered = await f.client().getBriefing({
+    query: "ZEPHYR_42",
+    memoryFilter: { types: ["constraint"] },
+  });
+  expect(filtered.memories?.items).toEqual([]);
+  expect(
+    filtered.activity?.items.find((item) => item.type === "memory.updated")
+      ?.excerpt.text,
+  ).toBe(current.content);
+});
+
+test("an update after retrieval keeps the newer activity content visible", async () => {
+  const memory = await f
+    .client()
+    .remember({ type: "fact", content: "ZEPHYR_42 prior state." });
+  const searchCompact = f.app.memories.searchCompact.bind(f.app.memories);
+  const search = spyOn(f.app.memories, "searchCompact").mockImplementationOnce(
+    async (input) => {
+      const result = await searchCompact(input);
+      await f.client().updateMemory(memory.id, {
+        expectedVersion: 1,
+        content: "ZEPHYR_42 changed after retrieval.",
+      });
+      return result;
+    },
+  );
+  try {
+    const briefing = await f.client().getBriefing({ query: "ZEPHYR_42" });
+    expect(briefing.memories?.items[0]?.version).toBe(1);
+    const event = briefing.activity?.items.find(
+      (item) => item.type === "memory.updated",
+    );
+    expect(event?.reference?.version).toBe(2);
+    expect(event?.excerpt.text).toBe("ZEPHYR_42 changed after retrieval.");
+  } finally {
+    search.mockRestore();
+  }
 });
 
 test("every briefing section fits the total UTF-8 budget and discloses omissions", async () => {

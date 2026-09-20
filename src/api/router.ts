@@ -285,23 +285,32 @@ export function createRouter(
   return async (request) => {
     try {
       const url = new URL(request.url);
-      const allowed: string[] = [];
-      for (const route of routes) {
+      // A literal path such as /memories/search owns every method; parameterized
+      // routes only apply when no literal route matches the path.
+      const matched = routes.flatMap((route) => {
         const match = route.path.exec(url.pathname);
-        if (!match) continue;
-        allowed.push(route.method);
-        if (request.method !== route.method) continue;
+        return match ? [{ route, match }] : [];
+      });
+      const literal = matched.filter(({ match }) => match.groups === undefined);
+      const candidates = literal.length ? literal : matched;
+      const hit = candidates.find(
+        ({ route }) => route.method === request.method,
+      );
+      if (hit) {
         const params: Params = {};
-        for (const [key, value] of Object.entries(match.groups ?? {})) {
+        for (const [key, value] of Object.entries(hit.match.groups ?? {})) {
           try {
             params[key] = decodeURIComponent(value);
           } catch {
             throw new AppError("INVALID_REQUEST", "Malformed URL encoding.");
           }
         }
-        return await route.handle(request, url, params);
+        return await hit.route.handle(request, url, params);
       }
-      if (allowed.length)
+      if (candidates.length) {
+        const allowed = [
+          ...new Set(candidates.map(({ route }) => route.method)),
+        ];
         return Response.json(
           new AppError(
             "METHOD_NOT_ALLOWED",
@@ -310,6 +319,7 @@ export function createRouter(
           ).toJSON(),
           { status: 405, headers: { Allow: allowed.join(", ") } },
         );
+      }
       throw new AppError("NOT_FOUND", "Endpoint does not exist.", 404);
     } catch (error) {
       const failure = publicError(error);

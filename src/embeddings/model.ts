@@ -44,20 +44,23 @@ export class LocalEmbeddingModel implements EmbeddingModel {
 
   private infer(text: string): Promise<Float32Array> {
     const run = this.pending.then(async () => {
-      const encoding = this.tokenizer.encode(text);
-      if (encoding.ids.length > 2048)
-        throw new Error("Embedding input exceeds model context");
-      const shape = [1, encoding.ids.length];
+      let ids = this.tokenizer.encode(text).ids;
+      // Documents are chunked below the context, but a query within its 1000
+      // character limit can still exceed it in byte-fallback scripts. Keep the
+      // leading tokens and the closing special token instead of failing.
+      if (ids.length > model.maxTokens)
+        ids = [...ids.slice(0, model.maxTokens - 1), ids[ids.length - 1]!];
+      const shape = [1, ids.length];
       const output = await this.session.run(
         {
           input_ids: new Tensor(
             "int64",
-            BigInt64Array.from(encoding.ids, BigInt),
+            BigInt64Array.from(ids, BigInt),
             shape,
           ),
           attention_mask: new Tensor(
             "int64",
-            BigInt64Array.from(encoding.attention_mask, BigInt),
+            BigInt64Array.from(ids, () => 1n),
             shape,
           ),
         },

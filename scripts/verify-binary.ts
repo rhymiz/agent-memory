@@ -93,7 +93,7 @@ try {
     agentId: "a",
   });
   const health = await client.health();
-  assert.equal(health.version, "0.6.0");
+  assert.equal(health.version, "0.6.1");
   const memory = await client.remember({
     type: "fact",
     content:
