@@ -344,4 +344,16 @@ describe("real offline EmbeddingGemma retrieval", () => {
       await f.close();
     }
   }, 60_000);
+
+  test("queries that exceed the model context in byte-fallback scripts still search", async () => {
+    const f = fixture(model);
+    try {
+      // 1000 Canadian syllabics tokenize to about 3000 tokens.
+      const query = "ᐁ".repeat(1000);
+      expect(await model.embedQuery(query)).toHaveLength(768);
+      expect((await f.client().search({ query })).items).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  }, 30_000);
 });

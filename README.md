@@ -68,8 +68,9 @@ runs locally on CPU using ONNX Runtime and Hugging Face's tokenizer. The q8
 weights use 768-dimensional normalized embeddings. Paragraphs are split into
 overlapping windows of at most 384 tokens with 48-token overlap; small paragraphs
 are grouped, and identical chunks are indexed once. All content is covered,
-including content beyond the model's 2,048-token context window. Only memory
-content is embedded; metadata stays structured.
+including content beyond the model's 2,048-token context window. A query that
+exceeds that window in byte-fallback scripts is clipped to its leading tokens
+rather than rejected. Only memory content is embedded; metadata stays structured.
 
 SQLite stores versioned chunk vectors with each memory. Search scans the current
 project's vectors, takes the best chunk per memory, and combines semantic and
@@ -101,9 +102,12 @@ filtered. Decision records are not embedded or returned by memory search.
 
 `memory_search_compact` / `MemoryClient.searchCompact()` use the same hybrid
 ranking as full search, returning `{ items, hasMore }` with IDs, types, versions,
-update timestamps, and `{ text, truncated }` excerpts. Excerpts are verbatim
-windows around query terms; semantic-only matches use leading text. Expand a hit
-with `memory_get` / `getMemory()` before correcting or deleting it. Full search
+update timestamps, and `{ text, truncated }` excerpts. Excerpts retain verbatim
+leading text, preferring complete sentences or lines within the 800-character cap
+and byte budget. This preserves opening dates and conditions instead of jumping
+to a matching phrase. Later answers or qualifications may still be omitted.
+Expand a hit with `memory_get` / `getMemory()` before relying on omitted details,
+correcting or deleting it. Full search
 continues to return complete records with its existing contract.
 
 Compact search defaults to 8 hits (maximum 50) and a 12000-byte budget. `maxBytes`
@@ -122,7 +126,6 @@ knowledge changes:
 const briefing = await memory.getBriefing({
   query: "Change the pagination contract",
   maxBytes: 20000,
-  memoryFilter: { types: ["fact", "constraint", "observation"] },
   sections: ["context", "memories", "claims", "activity", "decisions"],
 });
 ```
@@ -138,6 +141,10 @@ shows recent knowledge changes of all memory types.
 Activity excludes lease events before applying its limit, so lease churn cannot
 hide knowledge changes. Its memory/context excerpts reflect current referenced
 versions rather than historical event content; deleted memories are not recovered.
+When a referenced version's content is already shown in memories, context, or an
+earlier activity item, the activity excerpt contains the event message/type instead.
+Event identity, author, timestamp, and reference remain available. A record omitted
+from the other sections can still have its content shown in activity.
 
 The default briefing budget is 20000 bytes, divided among requested sections.
 Sections contain at most five items, except claims (ten) and context (one).
@@ -156,7 +163,9 @@ requires a new model identity and automatically rebuilds the index.
 Store reusable claims with their applicability and evidence pointers. A result
 should state a useful outcome or unresolved handoff in one sentence plus pointers;
 routine test, commit, and clean-tree receipts need no memory. Correct resolved
-handoffs in place, preserving useful rationale. Use `files`, `commit`, and `pr`
+handoffs in place, preserving useful rationale and dating historical states.
+Search for earlier gaps before appending completion knowledge. Keep each record
+focused on one reusable claim with its scope first. Use `files`, `commit`, and `pr`
 for ordinary metadata and keep retrieval-critical identifiers in content. The
 [knowledge workflow](skills/shared-agent-memory/references/knowledge.md) covers
 types, context initialization, evidence, correction, and cautious consolidation.
@@ -181,6 +190,10 @@ batch operations once, not once per resource. The daemon owns storage; do not co
 live SQLite/WAL files for inspection.
 
 Measure retrieval against judged questions, not type ratios:
+
+Keep evaluation questions and ranked outputs in files outside semantic memory;
+otherwise the test records can become their own search hits. Store only a concise
+finding and evidence pointer in the existing outcome case.
 
 ```sh
 bun run retrieval:evaluate /path/to/cases.json [http://127.0.0.1:8787]

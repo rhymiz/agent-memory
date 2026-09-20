@@ -115,7 +115,7 @@ export class MemoryService {
       limit,
       input.maxBytes ?? 12_000,
       (memory, bytes) =>
-        projectExcerpt(memory.content, input.query, bytes, (excerpt) => ({
+        projectExcerpt(memory.content, bytes, (excerpt) => ({
           id: memory.id,
           type: memory.type,
           version: memory.version,

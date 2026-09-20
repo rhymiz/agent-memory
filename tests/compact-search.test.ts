@@ -14,11 +14,12 @@ afterEach(async () => {
   await f.close();
 });
 
-test("compact search preserves full records and returns query excerpts, versions and bounded JSON", async () => {
+test("compact search preserves leading scope despite a distant query match", async () => {
   const memory = await f.client().remember({
     type: "constraint",
     content:
-      "Unrelated introduction. ".repeat(3000) +
+      "Historical observation from v0.5 only; this limitation is resolved in v0.6.\n" +
+      "Earlier evidence. ".repeat(3000) +
       '\n\nZEPHYR_42 requires "東京😀" and newlines.\n'.repeat(100),
     metadata: { large: "private metadata ".repeat(5000) },
   });
@@ -40,10 +41,12 @@ test("compact search preserves full records and returns query excerpts, versions
       type: "constraint",
       updatedAt: memory.updatedAt,
     });
-    expect(hit.excerpt.text).toContain("ZEPHYR_42");
+    expect(hit.excerpt.text).toStartWith(
+      "Historical observation from v0.5 only; this limitation is resolved in v0.6.\n",
+    );
     expect(hit.excerpt.text.isWellFormed()).toBe(true);
     expect(hit.excerpt.truncated).toBe(true);
-    expect(memory.content).toContain(hit.excerpt.text);
+    expect(memory.content.startsWith(hit.excerpt.text)).toBe(true);
     expect(hit).not.toHaveProperty("metadata");
   }
   expect(await f.client().getMemory(memory.id)).toEqual(memory);
