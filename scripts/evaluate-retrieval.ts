@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { MemoryClient } from "../src/client/memory-client";
 import { evaluationCases, evaluateCase } from "./lib/retrieval-evaluation";
 
@@ -8,8 +9,10 @@ if (!casesPath || extra.length)
   throw new Error(
     "Usage: bun run retrieval:evaluate <cases.json> [daemon-url]",
   );
-const value: unknown = JSON.parse(await readFile(casesPath, "utf8"));
+const source = await readFile(casesPath, "utf8");
+const value: unknown = JSON.parse(source);
 const cases = evaluationCases.parse(value);
+const startedAt = Date.now();
 const results = [];
 for (const item of cases) {
   const client = new MemoryClient({
@@ -20,5 +23,16 @@ for (const item of cases) {
   results.push(await evaluateCase(item, client));
 }
 console.log(
-  JSON.stringify({ evaluatedAt: Date.now(), cases: results }, null, 2),
+  JSON.stringify(
+    {
+      formatVersion: 2,
+      casesSha256: createHash("sha256").update(source).digest("hex"),
+      startedAt,
+      evaluatedAt: Date.now(),
+      judgments: cases,
+      cases: results,
+    },
+    null,
+    2,
+  ),
 );

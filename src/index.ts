@@ -60,7 +60,7 @@ async function main(): Promise<void> {
   if (args.includes("--stdio")) {
     process.stdin.once("end", () => void shutdown());
     try {
-      stdio = serveStdio(() => createMcpServer(app), { legacy: "reject" });
+      stdio = serveStdio(() => createMcpServer(app), { legacy: "serve" });
     } catch (error) {
       await shutdown();
       throw error;

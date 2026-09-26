@@ -62,7 +62,10 @@
         "src/repositories/decision-repository.ts",
         "src/db/migrations/004_decision_search.sql",
         "scripts/evaluate-retrieval.ts",
-        "scripts/lib/retrieval-evaluation.ts"
+        "scripts/lib/retrieval-evaluation.ts",
+        "scripts/lib/evaluation-evidence.ts",
+        "skills/shared-agent-memory/references/evaluation.md",
+        "src/index.ts"
       ]
     },
     {
@@ -116,7 +119,11 @@
         "tests/claim-batches.test.ts",
         "tests/decision-search.test.ts",
         "tests/retrieval-evaluation.test.ts",
-        "scripts/lib/retrieval-evaluation.ts"
+        "scripts/lib/retrieval-evaluation.ts",
+        "scripts/lib/evaluation-evidence.ts",
+        "skills/shared-agent-memory/references/evaluation.md",
+        "src/mcp/server.ts",
+        "src/index.ts"
       ]
     },
     {
@@ -142,7 +149,8 @@
         "skills/shared-agent-memory/references/identity.md",
         "skills/shared-agent-memory/references/retrieval.md",
         "skills/shared-agent-memory/references/claims.md",
-        "skills/shared-agent-memory/references/knowledge.md"
+        "skills/shared-agent-memory/references/knowledge.md",
+        "skills/shared-agent-memory/references/evaluation.md"
       ]
     },
     {
@@ -188,7 +196,8 @@
         "tests/memory-mutations.test.ts",
         "tests/domain.test.ts",
         "docs/development.md",
-        "tests/retrieval-evaluation.test.ts"
+        "tests/retrieval-evaluation.test.ts",
+        "src/domain/projections.ts"
       ]
     },
     {
@@ -216,7 +225,20 @@
         "tests/briefing.test.ts",
         ".agents/skills/baseline-project/references/outcomes.md",
         "scripts/lib/retrieval-evaluation.ts",
-        "tests/retrieval-evaluation.test.ts"
+        "tests/retrieval-evaluation.test.ts",
+        "scripts/lib/evaluation-evidence.ts",
+        "skills/shared-agent-memory/references/evaluation.md"
+      ]
+    },
+    {
+      "path": "skills/shared-agent-memory/references/evaluation.md",
+      "sources": [
+        "README.md",
+        "scripts/lib/retrieval-evaluation.ts",
+        "scripts/lib/evaluation-evidence.ts",
+        "tests/retrieval-evaluation.test.ts",
+        "skills/shared-agent-memory/references/knowledge.md",
+        "skills/shared-agent-memory/references/retrieval.md"
       ]
     }
   ],

@@ -39,6 +39,9 @@ canonical repository references are verified; see the knowledge reference.
 - **Knowledge maintenance:** Read [knowledge.md](references/knowledge.md) before
   correcting or deleting memories, updating context, or recording decisions.
   Fetch full records before changing them; excerpts may omit essential context.
+- **Corpus review or retrieval evaluation:** Read
+  [evaluation.md](references/evaluation.md) for bounded corrections, external
+  before/after evidence, and fresh-host consumption checks.
 - **Discoveries and completion:** Read [knowledge.md](references/knowledge.md)
   before storing a finding. Save reusable claims with evidence pointers; skip
   routine completion receipts. Completion alone does not require a memory.

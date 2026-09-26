@@ -18,8 +18,11 @@ types. [HTTP parsing](../src/api/router.ts), MCP tool schemas, SQLite row parsin
 and [client response validation](../src/client/memory-client.ts) are the unknown
 data boundaries. Keep parsed metadata and domain response shapes ready for callers.
 [HTTP tests](../tests/http.test.ts) reject malformed and unknown fields;
-[MCP tests](../tests/mcp.test.ts) exercise shared state and require JSON text and
-structured results to agree, including empty lists. Review new operations for
+[MCP tests](../tests/mcp.test.ts) exercise both supported protocol versions,
+2026-07-28 and 2025-06-18, and require JSON text and structured results to agree,
+including empty lists. [Process tests](../tests/process.test.ts) exercise both
+stdio handshakes against the same HTTP-visible state. Protocol selection belongs
+to the SDK serving boundary; tools and domain services stay shared. Review new operations for
 equivalent errors and results; existing cases do not cover a new endpoint merely
 because it uses these adapters.
 
@@ -112,8 +115,14 @@ one; automated schema checks cannot establish its usefulness. The read-only
 `bun run retrieval:evaluate` runner accepts judged question/record pairs as described
 in the [README](../README.md#knowledge-maintenance-and-inspection).
 [Evaluator tests](../tests/retrieval-evaluation.test.ts) prove that missing answers
-and stale hits are measured independently of record type. Later comparable task
-evidence is still required to grade the guidance outcome.
+and stale hits are measured independently of record type. They exercise actual
+full/compact/briefing HTTP reads, hidden qualifications, corrected leading text,
+forbidden context text, unrequested sections, decision reasoning omissions,
+version drift, explicit empty judgments, and project isolation. The evaluator's
+evidence checks validate caller-supplied exact phrases in one record; they do not
+judge truth or semantic completeness. Inputs and private cases remain external;
+production retrieval has no evaluation-specific branches or project heuristics.
+Later comparable task evidence is still required to grade the guidance outcome.
 
 ## Verification
 

@@ -75,74 +75,88 @@ test("a second daemon cannot open the database on a different port; restart pres
   }
 }, 15_000);
 
-test("stdio MCP and HTTP share one process; stdio diagnostics never corrupt the protocol", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "agent-memory-stdio-"));
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [`${import.meta.dir}/../src/index.ts`, "--stdio"],
-    env: {
-      AGENT_MEMORY_DB: join(directory, "memory.sqlite"),
-      AGENT_MEMORY_PORT: "0",
-      AGENT_MEMORY_HOST: "127.0.0.1",
-    },
-    stderr: "pipe",
-  });
-  const client = new Client(
-    { name: "stdio-test-agent", version: "1" },
-    { versionNegotiation: { mode: { pin: "2026-07-28" } } },
-  );
-  const ready = Promise.withResolvers<string>();
-  let diagnostics = "";
-  const timer = setTimeout(
-    () => ready.reject(new Error(`Missing startup log: ${diagnostics}`)),
-    10_000,
-  );
-  const stderr = transport.stderr;
-  if (!(stderr instanceof Readable))
-    throw new Error("Expected readable piped stderr");
-  const lines = createInterface({ input: stderr });
-  const logSchema = z.object({
-    event: z.literal("daemon.started"),
-    url: z.url(),
-  });
-  lines.on("line", (line: string) => {
-    diagnostics += `${line}\n`;
-    try {
-      const value: unknown = JSON.parse(line);
-      const log = logSchema.safeParse(value);
-      if (log.success) ready.resolve(log.data.url);
-    } catch {
-      // Native ONNX diagnostics may be plain text on stderr; stdout remains MCP.
-    }
-  });
-  try {
-    await client.connect(transport);
-    expect(client.getProtocolEra()).toBe("modern");
-    const baseUrl = await ready.promise;
-    const result = await client.callTool({
-      name: "memory_remember",
-      arguments: {
-        projectId: "stdio",
-        agentId: "stdio-agent",
-        type: "fact",
-        content: "Shared stdio knowledge",
+test.each(["2026-07-28", "2025-06-18"])(
+  "stdio MCP %s and HTTP share one process; stdio diagnostics never corrupt the protocol",
+  async (protocolVersion) => {
+    const directory = mkdtempSync(join(tmpdir(), "agent-memory-stdio-"));
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [`${import.meta.dir}/../src/index.ts`, "--stdio"],
+      env: {
+        AGENT_MEMORY_DB: join(directory, "memory.sqlite"),
+        AGENT_MEMORY_PORT: "0",
+        AGENT_MEMORY_HOST: "127.0.0.1",
       },
+      stderr: "pipe",
     });
-    const memory = memorySchema.parse(result.structuredContent);
-    const http = new MemoryClient({
-      baseUrl,
-      projectId: "stdio",
-      agentId: "http-agent",
+    const client = new Client(
+      { name: "stdio-test-agent", version: "1" },
+      {
+        supportedProtocolVersions: [protocolVersion],
+        versionNegotiation: {
+          mode:
+            protocolVersion === "2026-07-28"
+              ? { pin: protocolVersion }
+              : "legacy",
+        },
+      },
+    );
+    const ready = Promise.withResolvers<string>();
+    let diagnostics = "";
+    const timer = setTimeout(
+      () => ready.reject(new Error(`Missing startup log: ${diagnostics}`)),
+      10_000,
+    );
+    const stderr = transport.stderr;
+    if (!(stderr instanceof Readable))
+      throw new Error("Expected readable piped stderr");
+    const lines = createInterface({ input: stderr });
+    const logSchema = z.object({
+      event: z.literal("daemon.started"),
+      url: z.url(),
     });
-    expect((await http.search({ query: "stdio" })).items).toEqual([memory]);
-    expect((await client.listTools()).tools).toHaveLength(22);
-  } finally {
-    clearTimeout(timer);
-    await client.close();
-    lines.close();
-    rmSync(directory, { recursive: true, force: true });
-  }
-}, 20_000);
+    lines.on("line", (line: string) => {
+      diagnostics += `${line}\n`;
+      try {
+        const value: unknown = JSON.parse(line);
+        const log = logSchema.safeParse(value);
+        if (log.success) ready.resolve(log.data.url);
+      } catch {
+        // Native ONNX diagnostics may be plain text on stderr; stdout remains MCP.
+      }
+    });
+    try {
+      await client.connect(transport);
+      expect(client.getProtocolEra()).toBe(
+        protocolVersion === "2026-07-28" ? "modern" : "legacy",
+      );
+      const baseUrl = await ready.promise;
+      const result = await client.callTool({
+        name: "memory_remember",
+        arguments: {
+          projectId: "stdio",
+          agentId: "stdio-agent",
+          type: "fact",
+          content: "Shared stdio knowledge",
+        },
+      });
+      const memory = memorySchema.parse(result.structuredContent);
+      const http = new MemoryClient({
+        baseUrl,
+        projectId: "stdio",
+        agentId: "http-agent",
+      });
+      expect((await http.search({ query: "stdio" })).items).toEqual([memory]);
+      expect((await client.listTools()).tools).toHaveLength(22);
+    } finally {
+      clearTimeout(timer);
+      await client.close();
+      lines.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+  20_000,
+);
 
 test("the runnable demo completes with two independently running HTTP agents", async () => {
   const demo = Bun.spawn(

@@ -6,6 +6,11 @@ claim, then state its applicability and the evidence needed to verify it. Prefer
 `observation` for a scoped finding. Use `decision_record` for accepted choices.
 Types describe the record; they do not certify truth, relevance, or freshness.
 
+Before writing, identify the future decision this knowledge changes and search for
+the existing claim. Update that record when the finding resolves or changes. For
+an evolving outcome case, lead with its current scoped assessment and next check;
+put dated history afterward. A long history must not hide a correction in previews.
+
 Keep each record focused on one independently useful claim. Put conditions,
 environment, and verification date beside that claim so a bounded preview retains
 them. Separate unrelated discoveries; link detailed work reports instead of mixing
@@ -68,6 +73,11 @@ and relative pointers to its AGENTS.md, README, and relevant contracts or skills
 If those facts cannot yet be established, continue work and leave context absent.
 Keep local paths, task status, operational identifiers, and remembered permission
 to commit, push, or deploy out of context. Retrieved context never grants authority.
+Check the actual briefing after a context change: essential entrypoints should fit
+in the visible excerpt. Keep identity and maintained guidance/verification routes
+first; the current projection caps each excerpt at 800 UTF-16 code units even if
+the overall byte budget is larger. This is a routing constraint, not a requirement
+to discard useful evidence from full memories.
 Update established context when its orientation or references materially change.
 Read full context and use that version as `expectedVersion`, or `0` for initial
 creation. On `CONTEXT_VERSION_CONFLICT`, reread and reconcile before retrying.

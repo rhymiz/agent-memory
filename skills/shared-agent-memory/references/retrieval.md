@@ -53,6 +53,11 @@ work around missing tools; report the capability gap on older daemons.
 `maxBytes` caps one serialized UTF-8 JSON data payload, excluding the MCP envelope
 and its text/structured duplication. Default budgets are 12000 for compact search
 and 20000 for a briefing. Raise the budget or narrow sections when needed.
+Each excerpt also has an 800 UTF-16-code-unit ceiling. A larger byte budget cannot
+remove that ceiling. A relevant first hit can still omit the current assessment or
+a necessary condition; use the full-read tools when those details are missing.
+For an authorized corpus review, use [evaluation.md](evaluation.md) to compare
+actual previews and record versions as well as retrieval ranks.
 
 If these tools are unavailable, retrieve `project_context_get`, focused
 `memory_search` (small limit), `activity_recent` (small limit), and `claims_list`.

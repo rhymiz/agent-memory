@@ -52,6 +52,11 @@ new version: an ID previously marked stale does not make its corrected content
 stale. Preserve both judgment revisions and the before/after evidence. The runner's
 precision at K divides by requested K; also inspect returned-count precision and
 response bytes when a query returns fewer than K results.
+Also inspect full/compact/briefing evidence checks and omitted qualifications.
+The reusable [evaluation procedure](../skills/shared-agent-memory/references/evaluation.md)
+keeps consumer fixtures, preimages and host trials outside semantic memory.
+Version changes require rejudgment; a green ID-ranking metric does not establish
+that the brief exposes the current conclusion or its applicability.
 For coordination, compare claimed resources with actual writes and concurrent
 ownership; renewed holds longer than the initial TTL are valid. Use supported
 operator reads for corpus inspection rather than live SQLite/WAL copies. Keep

@@ -200,8 +200,11 @@ bun run retrieval:evaluate /path/to/cases.json [http://127.0.0.1:8787]
 ```
 
 The JSON file is an array of cases containing `name`, `projectId`, `query`, and
-`relevantMemoryIds` and/or `relevantDecisionIds`. Optional fields are `limit`
-(default 5, maximum 50), `memoryFilter`, `decisionQuery`, and `staleMemoryIds`.
+explicit relevance judgments and/or evidence `checks`. Project IDs, record IDs,
+phrases, and authoritative routes are supplied by the caller; the evaluator has
+no consumer-repository or host-specific rules. Optional fields are `limit`
+(default 5, maximum 50), `memoryFilter`, `decisionQuery`, `staleMemoryIds`,
+`compactMaxBytes`, and `briefing` (`maxBytes`, `sections`, `since`).
 For example, with IDs from records you have read and judged:
 
 ```json
@@ -211,17 +214,55 @@ For example, with IDs from records you have read and judged:
     "projectId": "example",
     "query": "pagination cursor",
     "relevantMemoryIds": ["mem_verified"],
-    "staleMemoryIds": ["mem_obsolete"]
+    "staleMemoryIds": ["mem_obsolete"],
+    "checks": [
+      {
+        "name": "answer retains applicability",
+        "target": { "kind": "memory", "id": "mem_verified", "version": 2 },
+        "requiredText": ["Cursor updates are atomic", "imported cursors only"]
+      },
+      {
+        "name": "project entrypoint",
+        "target": { "kind": "context", "version": 1 },
+        "requiredText": ["CONTRACT.md"],
+        "forbiddenText": ["Permanent permission to deploy"]
+      }
+    ]
   }
 ]
 ```
 
-The read-only evaluator reports returned IDs, precision at K (relevant hits divided
-by requested K), recall, reciprocal rank, missing expected records, and known stale
-hits. Curate complete relevance judgments for each case; unlisted relevant records
-would underestimate precision. An absent judgment group scores null, not zero.
-Compare the same questions and judgments before/after a change. These measurements
-cover the selected questions; they do not prove corpus-wide or coding improvement.
+The read-only evaluator reads full search, compact search, and project briefing
+through the typed HTTP client. Reports retain the normalized judgments, fixture
+SHA-256, read window, record text/versions, actual previews and omission flags,
+serialized payload bytes, first useful rank, recall, reciprocal rank, and both
+precision at requested K and precision among returned hits. Briefing rankings use
+the server's five-item section limit, independently of the search limit.
+
+Omit a relevance group to leave it unjudged (`null` metrics); an explicit empty
+array means no records are judged relevant, with recall/rank undefined. Zero
+returned records have no returned-count precision denominator. Curate complete
+judgments: unlisted useful records underestimate precision. An empty expected set
+does not prove that knowledge is absent from the whole project.
+
+Checks require all case-sensitive `requiredText` phrases and reject any
+`forbiddenText` in the same target record. Targets are `memory` (ID and optional
+version), `context` (optional version), or `decision` (ID). Each check needs at
+least one phrase. Decision full reads include subject, decision, and reasoning;
+brief excerpts contain the decision text only. Compact checks apply to memories;
+unrequested briefing sections list their checks as omitted, not passing. Missing
+records fail checks, while a changed pinned version yields `passed: null` and
+`status: version_changed` pending rejudgment. Exact phrases test evidence visibility,
+not truth, semantic completeness, or agent behavior.
+
+The calls are live reads, not one snapshot. `revisionChanges` flags differing
+memory/context versions across observed surfaces; other concurrent changes can
+still affect ranking. Preserve before/after fixtures and rejudge corrected records,
+including any stale-ID list. Exit zero means the evaluation ran, not that every
+judgment passed. Inspect results before claiming improvement. The
+[maintenance and host-evaluation procedure](skills/shared-agent-memory/references/evaluation.md)
+covers preimage archival, versioned corrections, and fresh-session trials. Keep
+consumer fixtures and private evidence outside this repository and semantic memory.
 
 ## Standalone executable
 
@@ -475,7 +516,12 @@ extended using the new default while they are still active.
 
 ## MCP
 
-MCP targets protocol **2026-07-28** using the official TypeScript SDK v2. Both HTTP and stdio explicitly reject legacy protocol openings. Connect clients to the existing daemon's `/mcp` endpoint for concurrent use.
+MCP supports protocols **2026-07-28** and **2025-06-18** using the official
+TypeScript SDK v2. The SDK handles both versions through the same tools and
+services. HTTP uses stateless serving for 2025 clients; stdio serves their
+initialization handshake. This allows clients such as Codex CLI to connect without
+a protocol override. Connect clients to the existing daemon's `/mcp` endpoint for
+concurrent use.
 
 For a TypeScript MCP client:
 
@@ -550,7 +596,11 @@ events. SQL migrations are imported as text and bundled into the standalone bina
 Migration 4 builds the decision text index from existing records without changing
 their identity or supersession history.
 
-The tests cover domain transitions, transaction rollback, HTTP boundaries, all MCP tools/resources on the pinned protocol, stdio/HTTP shared state, independent process coordination, persistence/restart and rejection of a second database owner.
+The tests cover domain transitions, transaction rollback, HTTP boundaries, all MCP
+tools/resources through both supported protocol versions, stdio/HTTP shared state,
+independent process coordination, persistence/restart and rejection of a second
+database owner. Offline binary verification also checks discovery and readable
+results through both MCP versions.
 
 ## Repository development
 

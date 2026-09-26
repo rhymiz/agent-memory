@@ -8,7 +8,7 @@ export function createMcpServer(app: Application): McpServer {
   const server = new McpServer(
     { name: "agent-memory", version: packageInfo.version },
     {
-      supportedProtocolVersions: ["2026-07-28"],
+      supportedProtocolVersions: ["2026-07-28", "2025-06-18"],
       instructions:
         "Shared project knowledge and cooperative leases. Retrieve task-relevant context; claim before shared edits. Agent IDs are not authentication.",
     },
@@ -18,5 +18,5 @@ export function createMcpServer(app: Application): McpServer {
   return server;
 }
 export function createMcpHttpHandler(app: Application) {
-  return createMcpHandler(() => createMcpServer(app), { legacy: "reject" });
+  return createMcpHandler(() => createMcpServer(app), { legacy: "stateless" });
 }

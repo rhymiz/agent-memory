@@ -15,6 +15,7 @@ import {
 } from "@modelcontextprotocol/client";
 import { startDaemon } from "../examples/daemon-process";
 import { MemoryClient } from "../src/client/memory-client";
+import packageInfo from "../package.json";
 import {
   claimsRenewed,
   compactSearchResult,
@@ -93,7 +94,7 @@ try {
     agentId: "a",
   });
   const health = await client.health();
-  assert.equal(health.version, "0.6.1");
+  assert.equal(health.version, packageInfo.version);
   const memory = await client.remember({
     type: "fact",
     content:
@@ -211,6 +212,30 @@ try {
   );
   await mcp.close();
   mcp = undefined;
+  const legacy = new Client(
+    { name: "offline-legacy-test", version: "1" },
+    {
+      supportedProtocolVersions: ["2025-06-18"],
+      versionNegotiation: { mode: "legacy" },
+    },
+  );
+  try {
+    await legacy.connect(
+      new StreamableHTTPClientTransport(new URL("/mcp", daemon.baseUrl)),
+    );
+    assert.equal(legacy.getProtocolEra(), "legacy");
+    assert.equal((await legacy.listTools()).tools.length, 22);
+    const result = await legacy.callTool({
+      name: "memory_get",
+      arguments: { projectId: "offline", memoryId: memory.id },
+    });
+    assert.deepEqual(result.structuredContent, memory);
+    assert.deepEqual(result.content, [
+      { type: "text", text: JSON.stringify(memory) },
+    ]);
+  } finally {
+    await legacy.close();
+  }
   await daemon.stop();
   daemon = undefined;
   // Damage one cached asset. Restart must repair it from the executable without a download.

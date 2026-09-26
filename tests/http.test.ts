@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { MemoryClientError } from "../src/client/memory-client";
 import { fixture, type Fixture } from "./helpers";
+import packageInfo from "../package.json";
 
 let f: Fixture;
 beforeEach(() => {
@@ -14,7 +15,7 @@ test("health reports database availability and package version", async () => {
   expect(await f.client().health()).toEqual({
     status: "ok",
     database: "ok",
-    version: "0.6.1",
+    version: packageInfo.version,
   });
 });
 

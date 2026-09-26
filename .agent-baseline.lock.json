@@ -3,7 +3,7 @@
   "evidence": [
     {
       "source": ".agent-baseline.json",
-      "sha256": "4753623c8ea133f9b2a05a41d8199eb485a2ff9b74a0f4c8f565aa3788eaa07d"
+      "sha256": "6cc1d900281fd8de2430224ab492e3abc621e2791712ab8ad169cc837850ed0a"
     },
     {
       "source": ".agents/skills/baseline-project/.agent-baseline-install.json",
@@ -43,7 +43,7 @@
     },
     {
       "source": "README.md",
-      "sha256": "d8a81243bb856b578f33642ff6d1694fec9edc338581d27c91afcafa1f1b5713"
+      "sha256": "0b6143d5880c15a36f4abd62c62fbac7802df29d238e6adba68502bf86bc6622"
     },
     {
       "source": "docs/agent-instructions.md",
@@ -51,11 +51,11 @@
     },
     {
       "source": "docs/development.md",
-      "sha256": "4e337c3535bda709e9c3e784a38bf18994fb6e18c7d97a9d948cb0e90733abec"
+      "sha256": "770dea36bc241be66ce853641744b9c7d74efbb0071216e5a34fe091e48b9927"
     },
     {
       "source": "docs/outcome-tracking.md",
-      "sha256": "9f7a01b3c26a4e41d1bf9d371a6d83e0c4641cb1183781a015bf45b46f025387"
+      "sha256": "bead78d071646280162299040d648b4bca7353562a0afa5613f4b10db723c828"
     },
     {
       "source": "install.sh",
@@ -67,11 +67,15 @@
     },
     {
       "source": "scripts/evaluate-retrieval.ts",
-      "sha256": "32eb7bf7d1fcbb7fb5c7846da904d23a453e5805212ce9d22328476a197fc4c9"
+      "sha256": "9f57669b1cff73e2f6380221731d2b67468e1e6a5c6d2f852c95ba8ef364b89e"
+    },
+    {
+      "source": "scripts/lib/evaluation-evidence.ts",
+      "sha256": "57ed899485e09b0e649865a0b855185bd2cf700a96cf2046d0fad9a38a93a033"
     },
     {
       "source": "scripts/lib/retrieval-evaluation.ts",
-      "sha256": "b529e39a6e2e4fc3347e3310000442d04866b828618be32b57ac9c099591ebac"
+      "sha256": "bb888eaeaf04728a1fa3d7ff9214293f6241bcc5a4c29b735cdb7b3474b6ae71"
     },
     {
       "source": "scripts/verify-binary.sh",
@@ -79,15 +83,19 @@
     },
     {
       "source": "scripts/verify-binary.ts",
-      "sha256": "bf25c4a09def3d7331360e6e1360a8245735b93e94cd7d7c0fd381964a9416c9"
+      "sha256": "6328e4bf1596d69f55600861a2d9d097cfd60e213cad96141e68e716dc593bb6"
     },
     {
       "source": "skills/shared-agent-memory/SKILL.md",
-      "sha256": "85503108f94ddc4da0b62f47d40a0f6790c9b3a7aaadf557bb6758cb2cdf07f2"
+      "sha256": "694c530c0c5e008ad4874e7cbc8d90c31445de2ca367c27b46e6a7836abc6317"
     },
     {
       "source": "skills/shared-agent-memory/references/claims.md",
       "sha256": "8229787a9e0b680bec111fcdeec2d34c0e2aaf2012dd64889ddbd2e27dda4e08"
+    },
+    {
+      "source": "skills/shared-agent-memory/references/evaluation.md",
+      "sha256": "071a6add7662631f57fb5c3919d7663b532f56f4e20b353a9696c81cbaa18548"
     },
     {
       "source": "skills/shared-agent-memory/references/identity.md",
@@ -95,15 +103,15 @@
     },
     {
       "source": "skills/shared-agent-memory/references/knowledge.md",
-      "sha256": "2bcb485c9f097c20073f4d0107693fc26a2c64396c5d6f504c0a7c00323b4c18"
+      "sha256": "46b41d504c9dbd89ed7a72ad17512c3454041414d3e6bf15d6bd4abc7466908e"
     },
     {
       "source": "skills/shared-agent-memory/references/retrieval.md",
-      "sha256": "ae11c7f486d7fbb01c725ea8a3f0a256da5bc6faefa679068659a120ebd811cb"
+      "sha256": "1af69ad0bb5dc061e909b4e472b8898e55ee0bbc1c84885dd3a8a5ccff3a5c0a"
     },
     {
       "source": "src/api/router.ts",
-      "sha256": "eb101e788b43161b4c5febfe4f29dfb8e8243b484eb07d13f4ccc05d6f3e8964"
+      "sha256": "6795981d511c6e19ce9221b68dc57dadcbadd5e12330eccf56f78cc07c7f6b6b"
     },
     {
       "source": "src/application.ts",
@@ -151,11 +159,15 @@
     },
     {
       "source": "src/embeddings/manifest.ts",
-      "sha256": "cf8154c40ccc068d67437e48e29ad9d3bb8fd37e8181123aecf9a2c8e6b53e09"
+      "sha256": "edcaa5dcba330a3274d64cff5096b8afffaea51ac9f3ed26565b343f1fcc44da"
+    },
+    {
+      "source": "src/index.ts",
+      "sha256": "833a6e9ce5bd2bcd712bca42ac185df92a8afa535331469994b62255a8ad9c30"
     },
     {
       "source": "src/mcp/server.ts",
-      "sha256": "673546c8893279a0f1c746680588adfadb943c4861349b38e110f96c92ea6624"
+      "sha256": "8efc72cf8c9620fa3bcabd8dd7214cdcfcc74b260ab9e383946bf66d8b60b36c"
     },
     {
       "source": "src/mcp/tools.ts",
@@ -235,7 +247,7 @@
     },
     {
       "source": "tests/http.test.ts",
-      "sha256": "3a447e70349813d7b22d692313f024c734be614b93da789ac02275a341515045"
+      "sha256": "0976deb6c0046892076e731e65d6d25fbf160b0fe893a69d0969eb3b48e2d73b"
     },
     {
       "source": "tests/inspection.test.ts",
@@ -247,7 +259,7 @@
     },
     {
       "source": "tests/mcp.test.ts",
-      "sha256": "55025f72fabcf8abd7d537409edffc97188ec0b8914e7973b50ad47b4d06ab9e"
+      "sha256": "0d26d488a20bbfe3184dac17e4a9e9aa3b99433f7952688149a21b6a119a459e"
     },
     {
       "source": "tests/memory-mutations.test.ts",
@@ -255,11 +267,11 @@
     },
     {
       "source": "tests/process.test.ts",
-      "sha256": "46238ac70dbc2db33822429ef33bcb1ee70f540eef98ddf2650dc11609156d4d"
+      "sha256": "4cea2c2a206297de0a009b92a1be9e834a97da7bf95e585d31275fbd1eadabf3"
     },
     {
       "source": "tests/retrieval-evaluation.test.ts",
-      "sha256": "bd96d701f156616a3a5e0798f6f168fa49d0d31c5dc7adcb2af4c62f44d13f62"
+      "sha256": "aa4ddf6c379877a6504cdc320fd49239f6be0c19cbc63947367ac7e22f2eb495"
     },
     {
       "source": "tests/search-filters.test.ts",
@@ -267,7 +279,7 @@
     },
     {
       "source": "tests/semantic.test.ts",
-      "sha256": "31d59446494e88298f74d447a72b53c84b8715cca38aaf463ebb94f5fe6871d8"
+      "sha256": "8f49994bc0b388e8c0365563a63698983898db9bd4783b798b9c71e437b2918a"
     },
     {
       "source": "tsconfig.json",
