@@ -1,0 +1,16 @@
+{
+  "name": "agent-memory",
+  "owner": {
+    "name": "rhymiz"
+  },
+  "plugins": [
+    {
+      "name": "agent-memory",
+      "source": "./plugins/agent-memory",
+      "description": "Shared project memory and cooperative edit ownership through a local memd daemon."
+    }
+  ],
+  "metadata": {
+    "description": "Shared project memory skills and a local memd MCP connection."
+  }
+}

@@ -161,3 +161,31 @@ The release jobs additionally install and execute the actual compiled artifact.
 Tag publication requires both architectures to pass and a tag matching the package
 version. Local checks alone do not prove a published release. Host discovery paths
 passing validation do not prove skill loading in a fresh agent session.
+
+## Plugin distribution
+
+The canonical skill is inside [plugins/agent-memory](../plugins/agent-memory/README.md).
+The former `skills/shared-agent-memory` path remains a symlink, preserving existing
+repository routing without a second guidance copy. Packages must be self-contained:
+no links outside the bundle, user configuration, credentials, project IDs, databases,
+or model assets. Native host manifests adapt loading only; all hosts share the same
+skill and HTTP endpoint. Portable MCP uses `streamable-http`; compatibility
+configuration uses `http`. Both target the same running daemon.
+
+[Package tests](../tests/plugin-package.test.ts) unpack both release archives away
+from the checkout and check complete skill/reference content, host manifests,
+equivalent MCP endpoints, checksums, version agreement, and rejection of symlinks.
+Review format changes against the official sources in the plugin README and run
+installed native validators. Fresh host trials must identify the bundled skill
+and complete a memory read; archive validity alone does not establish host support
+or correct agent behavior. Keep host transcripts and task-specific prompts outside
+the distributed package and record verification limits in release evidence.
+
+`bun run plugin:build` builds guidance archives without the model. The separate
+[plugin workflow](../.github/workflows/plugins.yml) verifies those archives and
+publishes `plugin-v<version>` tags. Plugin versions must match across manifests;
+the documented minimum daemon version is a separate compatibility contract.
+Publication uses `--latest=false` so the Linux installer's latest-release lookup
+continues to resolve a daemon release. New clients can use the portable package or
+the standalone skill and their native MCP configuration; do not infer support
+from an untested host name.

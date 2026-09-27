@@ -1,0 +1,12 @@
+{
+  "name": "agent-memory",
+  "version": "0.1.0",
+  "description": "Shared project memory and cooperative edit ownership through a local memd daemon.",
+  "author": {
+    "name": "rhymiz",
+    "url": "https://github.com/rhymiz"
+  },
+  "homepage": "https://github.com/rhymiz/agent-memory",
+  "repository": "https://github.com/rhymiz/agent-memory",
+  "keywords": ["memory", "coordination", "mcp"]
+}

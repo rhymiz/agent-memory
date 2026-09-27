@@ -65,7 +65,20 @@
         "scripts/lib/retrieval-evaluation.ts",
         "scripts/lib/evaluation-evidence.ts",
         "skills/shared-agent-memory/references/evaluation.md",
-        "src/index.ts"
+        "src/index.ts",
+        "scripts/build-plugin.ts",
+        "tests/plugin-package.test.ts",
+        ".github/workflows/plugins.yml",
+        "plugins/agent-memory/plugin.json",
+        "plugins/agent-memory/.codex-plugin/plugin.json",
+        "plugins/agent-memory/.claude-plugin/plugin.json",
+        "plugins/agent-memory/.cursor-plugin/plugin.json",
+        "plugins/agent-memory/mcp.json",
+        "plugins/agent-memory/.mcp.json",
+        ".agents/plugins/marketplace.json",
+        ".claude-plugin/marketplace.json",
+        ".cursor-plugin/marketplace.json",
+        "plugins/agent-memory/README.md"
       ]
     },
     {
@@ -123,7 +136,20 @@
         "scripts/lib/evaluation-evidence.ts",
         "skills/shared-agent-memory/references/evaluation.md",
         "src/mcp/server.ts",
-        "src/index.ts"
+        "src/index.ts",
+        "scripts/build-plugin.ts",
+        "tests/plugin-package.test.ts",
+        ".github/workflows/plugins.yml",
+        "plugins/agent-memory/plugin.json",
+        "plugins/agent-memory/.codex-plugin/plugin.json",
+        "plugins/agent-memory/.claude-plugin/plugin.json",
+        "plugins/agent-memory/.cursor-plugin/plugin.json",
+        "plugins/agent-memory/mcp.json",
+        "plugins/agent-memory/.mcp.json",
+        ".agents/plugins/marketplace.json",
+        ".claude-plugin/marketplace.json",
+        ".cursor-plugin/marketplace.json",
+        "plugins/agent-memory/README.md"
       ]
     },
     {
@@ -138,7 +164,20 @@
         "skills/shared-agent-memory/references/knowledge.md",
         ".agents/skills/baseline-project/SKILL.md",
         ".agents/skills/baseline-project/references/maintain.md",
-        "docs/outcome-tracking.md"
+        "docs/outcome-tracking.md",
+        "scripts/build-plugin.ts",
+        "tests/plugin-package.test.ts",
+        ".github/workflows/plugins.yml",
+        "plugins/agent-memory/plugin.json",
+        "plugins/agent-memory/.codex-plugin/plugin.json",
+        "plugins/agent-memory/.claude-plugin/plugin.json",
+        "plugins/agent-memory/.cursor-plugin/plugin.json",
+        "plugins/agent-memory/mcp.json",
+        "plugins/agent-memory/.mcp.json",
+        ".agents/plugins/marketplace.json",
+        ".claude-plugin/marketplace.json",
+        ".cursor-plugin/marketplace.json",
+        "plugins/agent-memory/README.md"
       ]
     },
     {
@@ -239,6 +278,25 @@
         "tests/retrieval-evaluation.test.ts",
         "skills/shared-agent-memory/references/knowledge.md",
         "skills/shared-agent-memory/references/retrieval.md"
+      ]
+    },
+    {
+      "path": "plugins/agent-memory/README.md",
+      "sources": [
+        "scripts/build-plugin.ts",
+        "tests/plugin-package.test.ts",
+        ".github/workflows/plugins.yml",
+        "plugins/agent-memory/plugin.json",
+        "plugins/agent-memory/.codex-plugin/plugin.json",
+        "plugins/agent-memory/.claude-plugin/plugin.json",
+        "plugins/agent-memory/.cursor-plugin/plugin.json",
+        "plugins/agent-memory/mcp.json",
+        "plugins/agent-memory/.mcp.json",
+        ".agents/plugins/marketplace.json",
+        ".claude-plugin/marketplace.json",
+        ".cursor-plugin/marketplace.json",
+        "plugins/agent-memory/skills/shared-agent-memory/SKILL.md",
+        "docs/development.md"
       ]
     }
   ],

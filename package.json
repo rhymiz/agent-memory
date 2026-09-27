@@ -17,12 +17,13 @@
     "baseline:check": "uv tool run --from agent-baseline==0.4.0 agent-baseline check .",
     "baseline:record": "uv tool run --from agent-baseline==0.4.0 agent-baseline record .",
     "baseline:verify": "uv tool run --from agent-baseline==0.4.0 agent-baseline verify .",
-    "format": "prettier --write src tests examples scripts .github AGENTS.md README.md docs skills .agent-baseline.json package.json tsconfig.json",
-    "format:check": "prettier --check src tests examples scripts .github AGENTS.md README.md docs skills .agent-baseline.json package.json tsconfig.json",
+    "format": "prettier --write src tests examples scripts .github AGENTS.md README.md docs plugins .agents/plugins .claude-plugin .cursor-plugin .agent-baseline.json package.json tsconfig.json",
+    "format:check": "prettier --check src tests examples scripts .github AGENTS.md README.md docs plugins .agents/plugins .claude-plugin .cursor-plugin .agent-baseline.json package.json tsconfig.json",
     "demo": "bun run examples/two-agents.ts",
     "build": "bun run scripts/build.ts",
     "model:download": "bun run scripts/download-model.ts",
-    "verify:binary": "sh scripts/verify-binary.sh"
+    "verify:binary": "sh scripts/verify-binary.sh",
+    "plugin:build": "bun run scripts/build-plugin.ts"
   },
   "engines": {
     "bun": ">=1.4.2"

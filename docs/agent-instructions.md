@@ -71,10 +71,15 @@ not certify repository evidence freshness or run baseline commands automatically
 
 ## Skill locations
 
-The repository maintains `skills/shared-agent-memory`; its project discovery entry
-at `.agents/skills/shared-agent-memory` is a relative symlink to that directory.
-Edit the canonical files. Project work loads this copy explicitly through AGENTS.md,
-so it does not depend on a possibly older user-level installation.
+The canonical skill lives in
+`plugins/agent-memory/skills/shared-agent-memory`, inside the self-contained
+[distribution package](../plugins/agent-memory/README.md).
+`skills/shared-agent-memory` is a compatibility symlink, and the existing project
+discovery entry at `.agents/skills/shared-agent-memory` resolves through it.
+Edit the canonical files once; native plugin manifests share the same skill.
+Project work loads this copy explicitly through AGENTS.md, so it does not depend
+on a possibly older user-level installation. Other repositories install the
+plugin or standalone skill and supply their own project identity and contracts.
 
 Baseline's bundled skill is installed in `.agents/skills/baseline-project` with a
 managed installation receipt. Keep repository-specific instructions in the files

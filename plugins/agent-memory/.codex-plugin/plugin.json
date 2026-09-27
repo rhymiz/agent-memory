@@ -1,0 +1,23 @@
+{
+  "name": "agent-memory",
+  "version": "0.1.0",
+  "description": "Shared project memory and cooperative edit ownership through a local memd daemon.",
+  "author": {
+    "name": "rhymiz",
+    "url": "https://github.com/rhymiz"
+  },
+  "homepage": "https://github.com/rhymiz/agent-memory",
+  "repository": "https://github.com/rhymiz/agent-memory",
+  "keywords": ["memory", "coordination", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Agent Memory",
+    "shortDescription": "Shared project memory and edit coordination.",
+    "longDescription": "Retrieve relevant project history, expand evidence, coordinate shared edits and maintain reusable knowledge with your local memd daemon.",
+    "developerName": "rhymiz",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": ["Use shared project memory to orient this task."]
+  }
+}

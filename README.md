@@ -617,9 +617,25 @@ review before recording a new baseline.
 
 Reusable agent instructions: [docs/agent-instructions.md](docs/agent-instructions.md).
 
+## Agent plugins and skills
+
+The [Agent Memory plugin](plugins/agent-memory/README.md) bundles the shared skill
+and local HTTP MCP connection for Codex, Claude Code, Grok Build, and Cursor. Its
+self-contained package includes portable Agent Plugins files and native
+compatibility manifests, with repository marketplaces for Codex, Claude/Grok, and
+Cursor. See the plugin README for each client's installation and update commands,
+custom endpoints, and standalone skill installation for other harnesses.
+
+The daemon and plugin have independent releases. The plugin requires memd 0.6.2
+or later running on the agent's machine; installing it does not start another
+daemon. Plugin tags use `plugin-v*` and do not change the latest daemon release.
+`bun run plugin:build` creates checksummed plugin and standalone skill archives in
+`dist/plugins`, without bundling a database, model, or consumer project context.
+
 The maintained [shared-agent-memory skill](skills/shared-agent-memory/SKILL.md)
-keeps the entrypoint short and routes operation details to references. To install
-or update the skill locally while preserving existing UI metadata:
+lives inside the plugin; `skills/shared-agent-memory` preserves the repository's
+existing discovery and documentation paths. To update an existing standalone
+Codex installation while preserving its UI metadata:
 
 ```sh
 mkdir -p ~/.codex/skills/shared-agent-memory
