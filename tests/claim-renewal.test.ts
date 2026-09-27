@@ -8,7 +8,7 @@ import {
   claimsRenewed,
   renewClaimsInput,
 } from "../src/domain/contracts";
-import { fixture, type Fixture } from "./helpers";
+import { fixture, toolError, type Fixture } from "./helpers";
 
 let f: Fixture;
 const actor = { projectId: "test-project", agentId: "agent-a" };
@@ -252,9 +252,7 @@ test("HTTP and MCP validate batches and expose identical renewal results and err
       arguments: { ...input, agentId: "agent-b" },
     });
     expect(other.isError).toBe(true);
-    expect(other.structuredContent).toMatchObject({
-      error: { code: "CLAIM_NOT_OWNER" },
-    });
+    expect(toolError(other).code).toBe("CLAIM_NOT_OWNER");
     for (const invalid of [
       [],
       [claimIds[0], claimIds[0]],

@@ -6,6 +6,21 @@ import { startHttpServer } from "../src/api/server";
 import { openDatabase } from "../src/db/database";
 import { MemoryClient } from "../src/client/memory-client";
 import { normalized, type EmbeddingModel } from "../src/domain/embedding";
+import { expect } from "bun:test";
+import type { CallToolResult } from "@modelcontextprotocol/client";
+import { errorResponse } from "../src/domain/errors";
+
+export function toolError(result: CallToolResult) {
+  expect(result.isError).toBe(true);
+  // Older clients validate any structured payload against the success schema,
+  // even when isError is true. Errors must remain readable in those clients.
+  expect(result.structuredContent).toBeUndefined();
+  const text = result.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+  return errorResponse.parse(JSON.parse(text)).error;
+}
 
 // Deterministic injected model for service/transport tests. Real inference has its own tests.
 export class TestEmbeddingModel implements EmbeddingModel {

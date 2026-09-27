@@ -59,7 +59,7 @@
     },
     {
       "source": "README.md",
-      "sha256": "fb2c74012d01ec45b252568b4c6a6e895777a9604b4ad135f264a373aa300a90"
+      "sha256": "4934e4e94117ef37f9346bebf2685972575f80c7170ae9254c16f350e506bcb8"
     },
     {
       "source": "docs/agent-instructions.md",
@@ -67,7 +67,7 @@
     },
     {
       "source": "docs/development.md",
-      "sha256": "d657cc0709a131002dfb85786af6b6b904f088786bda3c70be49f3dd1081bec3"
+      "sha256": "803a4939a48d439974c28d647f338221e5e41b8d7b11e9661476d92dd6aa53a1"
     },
     {
       "source": "docs/outcome-tracking.md",
@@ -79,15 +79,15 @@
     },
     {
       "source": "plugins/agent-memory/.claude-plugin/plugin.json",
-      "sha256": "a275d2814c0fe8137170514f7e3ec106507bb790b654aab9a29697bea12a0eb8"
+      "sha256": "f61c71c6a73dd3c0ae18cd1109159b82f675151a28059929792c9f9bf4315d44"
     },
     {
       "source": "plugins/agent-memory/.codex-plugin/plugin.json",
-      "sha256": "ec8176cf89929eed13b173a7d40f9b7a91efcd19db26aab60a8d05fa4f4cc23e"
+      "sha256": "6baa9768c55fe507ef8ec92dbe163dac0ec6af9dc34da56321e24c1ebf289955"
     },
     {
       "source": "plugins/agent-memory/.cursor-plugin/plugin.json",
-      "sha256": "55879f2a4b64254a289c6229a4733f0d77adca90126b6fa9cf78cb5851af1b76"
+      "sha256": "1a0301de2c827dc0768cee874355882dbf17e6c357c8f4dfe67cf21c5fb8764a"
     },
     {
       "source": "plugins/agent-memory/.mcp.json",
@@ -95,7 +95,7 @@
     },
     {
       "source": "plugins/agent-memory/README.md",
-      "sha256": "bb4f4d9298b63d5a7edbc5b39c4359e69d5c454463e47d0fcc4055e48a736e3f"
+      "sha256": "eddf8b88b4c43145f3280237e18de84f58ade49d4af9148bc670320810d90e0b"
     },
     {
       "source": "plugins/agent-memory/mcp.json",
@@ -103,11 +103,11 @@
     },
     {
       "source": "plugins/agent-memory/plugin.json",
-      "sha256": "499b7dffa365ab25873b5474fb7b288fbd67f8708ccf0279385ac08ecf432c44"
+      "sha256": "db0474c00364bf91ffcbd9b62208d7785d66a3c8ed144d1e2a4ed44338429e60"
     },
     {
       "source": "plugins/agent-memory/skills/shared-agent-memory/SKILL.md",
-      "sha256": "694c530c0c5e008ad4874e7cbc8d90c31445de2ca367c27b46e6a7836abc6317"
+      "sha256": "b400b5c67efab7bbb86120ab13ade682c3a4af89c9810588d9481bc647cb4080"
     },
     {
       "source": "scripts/build-plugin.ts",
@@ -139,11 +139,11 @@
     },
     {
       "source": "skills/shared-agent-memory/SKILL.md",
-      "sha256": "694c530c0c5e008ad4874e7cbc8d90c31445de2ca367c27b46e6a7836abc6317"
+      "sha256": "b400b5c67efab7bbb86120ab13ade682c3a4af89c9810588d9481bc647cb4080"
     },
     {
       "source": "skills/shared-agent-memory/references/claims.md",
-      "sha256": "8229787a9e0b680bec111fcdeec2d34c0e2aaf2012dd64889ddbd2e27dda4e08"
+      "sha256": "adb79151b4b01050abb673fddf437abfb4b0b93848516ceae135c5f9315dd0ac"
     },
     {
       "source": "skills/shared-agent-memory/references/evaluation.md",
@@ -187,7 +187,7 @@
     },
     {
       "source": "src/domain/contracts.ts",
-      "sha256": "c07d95ddb87ed049987670b8d96b8717bdbcdddbf4cde782f4c063d0c02cc9a9"
+      "sha256": "57373eb1a036304daed06264fd0e698c447dd052e8511efd4ebb4ac96ebf5b96"
     },
     {
       "source": "src/domain/lease.ts",
@@ -223,7 +223,7 @@
     },
     {
       "source": "src/mcp/tools.ts",
-      "sha256": "843d8cec135bfc58103759b48477ce8a7b789ca91cd6bd192e5ed8b64d9fa30c"
+      "sha256": "e2494b352be37c07006f37119939db28cff4e3becfc336e7a06953ea07405cfb"
     },
     {
       "source": "src/repositories/activity-repository.ts",
@@ -279,7 +279,7 @@
     },
     {
       "source": "tests/claim-renewal.test.ts",
-      "sha256": "4221e2b64af9950df2d3a87c06b90a6fc1843e9fd2912b9473b84729292b32fc"
+      "sha256": "6ec418ff648f0778d148536f391e89963f5a8c94dca523251aa56256b2f357ad"
     },
     {
       "source": "tests/compact-search.test.ts",
@@ -295,7 +295,7 @@
     },
     {
       "source": "tests/helpers.ts",
-      "sha256": "8cfb9f096e75f2c1c9f57da74f6a92fb8d63c1907c91fdb4ac8e04a51a179236"
+      "sha256": "1d062687b1ef0c06c68f77757d4d99b3db412c21be0ea40669ba06962105e9bd"
     },
     {
       "source": "tests/http.test.ts",
@@ -311,7 +311,7 @@
     },
     {
       "source": "tests/mcp.test.ts",
-      "sha256": "0d26d488a20bbfe3184dac17e4a9e9aa3b99433f7952688149a21b6a119a459e"
+      "sha256": "2683f7cd6a3fba9a4c3a3c4799fc33358a41c11eaf8588288b72420c568010a0"
     },
     {
       "source": "tests/memory-mutations.test.ts",

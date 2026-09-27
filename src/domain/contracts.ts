@@ -97,8 +97,16 @@ export const memoryUpdateInput = memoryUpdateBody
       input.metadata !== undefined,
     "Provide at least one memory field to update.",
   );
+export const resourceInput = z
+  .string()
+  .trim()
+  .min(1)
+  .max(1024)
+  .describe(
+    "Exact resource in kind:name format, e.g. file:src/search.ts. File and directory names are project-relative paths. A bare path is invalid; directory claims do not cover child files.",
+  );
 export const acquireInput = actorInput.extend({
-  resource: z.string().trim().min(1).max(1024),
+  resource: resourceInput,
   intent: z.string().trim().min(1).max(2000).optional(),
   ttlSeconds: ttlSeconds.optional(),
 });
@@ -133,7 +141,7 @@ export const claimsRenewed = leaseSchedule.extend({
   renewedCount: z.number().int().nonnegative(),
 });
 export const claimsInput = projectInput.extend({
-  resource: z.string().trim().min(1).max(1024).optional(),
+  resource: resourceInput.optional(),
 });
 export const contextUpdateBody = z.strictObject({
   agentId: identifier,

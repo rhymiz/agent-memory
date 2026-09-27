@@ -21,7 +21,6 @@ async function result(
     return {
       isError: true,
       content: [{ type: "text", text: JSON.stringify(data) }],
-      structuredContent: data,
     };
   }
 }
@@ -75,7 +74,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "project_briefing",
     {
       description:
-        "Start project work with bounded context, relevant memories, active claims, matching active decisions and knowledge changes. memoryFilter restricts memory retrieval. All sections are included by default. Excerpts and hasMore disclose omissions. Does not acquire claims.",
+        "Start project work with bounded context, relevant memories, active claims, matching active decisions and knowledge changes. memoryFilter restricts memory retrieval. All sections are included by default. Expand relevant truncated records before consequential use. Does not acquire claims; claim files separately before editing.",
       inputSchema: c.briefingInput,
       outputSchema: c.projectBriefing,
       annotations: read,
@@ -86,7 +85,7 @@ export function registerTools(server: McpServer, app: Application): void {
     "memory_search_compact",
     {
       description:
-        "Find project memories with verbatim excerpts within maxBytes of UTF-8 JSON (default 12000). Optional types, updatedSince and minImportance filter candidates before ranking. hasMore indicates omitted hits; excerpt.truncated indicates omitted text. Use memory_get before mutations.",
+        "Find project memories with verbatim excerpts within maxBytes of UTF-8 JSON (default 12000). Optional types, updatedSince and minImportance filter candidates before ranking. hasMore indicates omitted hits; excerpt.truncated indicates omitted text. Use memory_get before consequential use of truncated evidence or before mutations.",
       inputSchema: c.compactSearchInput,
       outputSchema: c.compactSearchResult,
       annotations: read,

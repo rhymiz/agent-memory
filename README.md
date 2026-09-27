@@ -558,7 +558,7 @@ claims_list              claims_renew            project_context_get     project
 decision_record          decisions_list          activity_recent
 ```
 
-Tool input schemas mirror the HTTP contracts: `query` replaces HTTP's `q`, route IDs become `projectId`, `memoryId` or `claimId`, and filters are typed properties. Domain failures carry `isError: true` and the same structured error codes as HTTP. The MCP SDK handles malformed protocol messages and schema-invalid tool calls. Resources return JSON views of the same services:
+Tool input schemas mirror the HTTP contracts: `query` replaces HTTP's `q`, route IDs become `projectId`, `memoryId` or `claimId`, and filters are typed properties. Successful tool calls return matching JSON text and `structuredContent`. Domain failures carry `isError: true` and a JSON text error with the same code, message, and details as HTTP. Errors omit `structuredContent` so clients do not validate failures against a success-only output schema. Check `isError` before reading a successful result. The MCP SDK handles malformed protocol messages and schema-invalid tool calls. Resources return JSON views of the same services:
 
 ```text
 memory://projects/{projectId}/context
@@ -626,7 +626,7 @@ compatibility manifests, with repository marketplaces for Codex, Claude/Grok, an
 Cursor. See the plugin README for each client's installation and update commands,
 custom endpoints, and standalone skill installation for other harnesses.
 
-The daemon and plugin have independent releases. The plugin requires memd 0.6.2
+The daemon and plugin have independent releases. The plugin requires memd 0.6.3
 or later running on the agent's machine; installing it does not start another
 daemon. Plugin tags use `plugin-v*` and do not change the latest daemon release.
 `bun run plugin:build` creates checksummed plugin and standalone skill archives in

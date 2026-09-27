@@ -4,8 +4,7 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import * as c from "../src/domain/contracts";
-import { errorResponse } from "../src/domain/errors";
-import { fixture, type Fixture } from "./helpers";
+import { fixture, toolError, type Fixture } from "./helpers";
 
 describe.each(["2026-07-28", "2025-06-18"])("MCP %s", (protocolVersion) => {
   let f: Fixture;
@@ -168,9 +167,7 @@ describe.each(["2026-07-28", "2025-06-18"])("MCP %s", (protocolVersion) => {
           : { ...target, expectedVersion: 1 };
       const conflict = await mcp.callTool({ name, arguments: args });
       expect(conflict.isError).toBe(true);
-      expect(
-        errorResponse.parse(conflict.structuredContent).error,
-      ).toMatchObject({
+      expect(toolError(conflict)).toMatchObject({
         code: "MEMORY_VERSION_CONFLICT",
         details: { expectedVersion: 1, actualVersion: 2 },
       });
@@ -179,9 +176,7 @@ describe.each(["2026-07-28", "2025-06-18"])("MCP %s", (protocolVersion) => {
         arguments: { ...args, projectId: "other", expectedVersion: 2 },
       });
       expect(isolated.isError).toBe(true);
-      expect(errorResponse.parse(isolated.structuredContent).error.code).toBe(
-        "MEMORY_NOT_FOUND",
-      );
+      expect(toolError(isolated).code).toBe("MEMORY_NOT_FOUND");
     }
     expect(
       c.memoryDeleted.parse(
@@ -216,14 +211,37 @@ describe.each(["2026-07-28", "2025-06-18"])("MCP %s", (protocolVersion) => {
       arguments: { projectId: actor.projectId, memoryId: second.id },
     });
     expect(gone.isError).toBe(true);
-    expect(errorResponse.parse(gone.structuredContent).error.code).toBe(
-      "MEMORY_NOT_FOUND",
-    );
+    expect(toolError(gone).code).toBe("MEMORY_NOT_FOUND");
     expect(
       c.activityResult.parse(
         await call("activity_recent", { projectId: actor.projectId }),
       ),
     ).toEqual(await http.recentActivity());
+  });
+
+  test("invalid claim resources expose an actionable error without acquiring ownership", async () => {
+    for (const name of ["claim_acquire", "claims_acquire"]) {
+      const resource =
+        name === "claim_acquire"
+          ? { resource: "src/search.ts" }
+          : { resources: ["src/search.ts"] };
+      const invalid = await mcp.callTool({
+        name,
+        arguments: { ...actor, ...resource },
+      });
+      expect(toolError(invalid)).toMatchObject({
+        code: "INVALID_REQUEST",
+        message: "Resource must use kind:name with no control characters.",
+      });
+      expect((await f.client().listClaims()).items).toEqual([]);
+    }
+    const granted = c.claimGranted.parse(
+      await call("claim_acquire", {
+        ...actor,
+        resource: "file:src/search.ts",
+      }),
+    );
+    expect(granted.claim.resource).toBe("file:src/search.ts");
   });
 
   test("MCP validates empty patches and missing mutation versions", async () => {
@@ -254,9 +272,7 @@ describe.each(["2026-07-28", "2025-06-18"])("MCP %s", (protocolVersion) => {
       arguments: { ...actor, resource: http.resource },
     });
     expect(conflict.isError).toBe(true);
-    expect(errorResponse.parse(conflict.structuredContent).error.code).toBe(
-      "CLAIM_CONFLICT",
-    );
+    expect(toolError(conflict).code).toBe("CLAIM_CONFLICT");
     expect(
       c.claimsResult.parse(
         await call("claims_list", { projectId: actor.projectId }),
@@ -321,12 +337,10 @@ describe.each(["2026-07-28", "2025-06-18"])("MCP %s", (protocolVersion) => {
       },
     });
     expect(conflict.isError).toBe(true);
-    expect(errorResponse.parse(conflict.structuredContent).error).toMatchObject(
-      {
-        code: "CONTEXT_VERSION_CONFLICT",
-        details: { actualVersion: 2, expectedVersion: 1 },
-      },
-    );
+    expect(toolError(conflict)).toMatchObject({
+      code: "CONTEXT_VERSION_CONFLICT",
+      details: { actualVersion: 2, expectedVersion: 1 },
+    });
   });
 
   test("decision tools and activity tool expose identical domain records", async () => {

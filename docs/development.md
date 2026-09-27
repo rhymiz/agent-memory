@@ -19,8 +19,12 @@ and [client response validation](../src/client/memory-client.ts) are the unknown
 data boundaries. Keep parsed metadata and domain response shapes ready for callers.
 [HTTP tests](../tests/http.test.ts) reject malformed and unknown fields;
 [MCP tests](../tests/mcp.test.ts) exercise both supported protocol versions,
-2026-07-28 and 2025-06-18, and require JSON text and structured results to agree,
-including empty lists. [Process tests](../tests/process.test.ts) exercise both
+2026-07-28 and 2025-06-18, and require successful JSON text and structured results
+to agree, including empty lists. Domain tool failures use `isError: true` and JSON
+text preserving the HTTP error code and details, without `structuredContent`:
+some clients otherwise validate errors against the successful output schema.
+MCP tests cover invalid claim resources, ownership failures, and stale memory and
+context versions through this error path. [Process tests](../tests/process.test.ts) exercise both
 stdio handshakes against the same HTTP-visible state. Protocol selection belongs
 to the SDK serving boundary; tools and domain services stay shared. Review new operations for
 equivalent errors and results; existing cases do not cover a new endpoint merely
@@ -180,6 +184,11 @@ installed native validators. Fresh host trials must identify the bundled skill
 and complete a memory read; archive validity alone does not establish host support
 or correct agent behavior. Keep host transcripts and task-specific prompts outside
 the distributed package and record verification limits in release evidence.
+For client compatibility changes, include a native headless read using the
+documented permissions and a recoverable error in an isolated project. Check the
+model-visible error and successful recovery, not just the process exit status.
+For upgrades, verify the selected source and version after restarting discovery;
+one visible skill can conceal another installation with the same name.
 
 `bun run plugin:build` builds guidance archives without the model. The separate
 [plugin workflow](../.github/workflows/plugins.yml) verifies those archives and

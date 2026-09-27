@@ -7,7 +7,7 @@ and durable knowledge maintenance across repositories.
 
 ## Prerequisite
 
-Run [memd](https://github.com/rhymiz/agent-memory#install-on-linux) **0.6.2 or later**
+Run [memd](https://github.com/rhymiz/agent-memory#install-on-linux) **0.6.3 or later**
 on the machine running the agent. The plugin connects over HTTP to
 `http://127.0.0.1:8787/mcp`; it does not start another daemon or own a database.
 Check `curl http://127.0.0.1:8787/health` before connecting.
@@ -27,7 +27,7 @@ codex plugin add agent-memory@agent-memory
 Start a new session and select Agent Memory. The repository marketplace is
 `.agents/plugins/marketplace.json`. The package includes both a portable
 `plugin.json` and the `.codex-plugin/plugin.json` compatibility manifest.
-For an exact release, add the marketplace with `--ref plugin-v0.1.0`.
+For an exact release, add the marketplace with `--ref plugin-v0.1.1`.
 
 ## Claude Code
 
@@ -49,6 +49,13 @@ grok plugin details agent-memory
 Grok supports the Claude plugin layout. If it already discovers this plugin from
 your Claude installation, use that installation instead of adding a second copy.
 For a local bundle, pass its directory to `grok plugin install`.
+Local installations follow the source directory through a symlink; update that
+source to update the installed plugin. Before changing installation routes, inspect
+`grok plugin list --json` and `grok plugin details agent-memory` for the selected
+source. Different sources with the same plugin name can coexist while discovery
+shows only one; uninstalling it can reveal the other. After removing an obsolete
+source, inspect again before installing a replacement. Preserve the installation
+you intend to use and verify its manifest version in a fresh session.
 
 ## Cursor
 
@@ -59,9 +66,30 @@ cursor-agent --plugin-dir /path/to/agent-memory
 ```
 
 Sign in with `cursor-agent login` and approve the plugin's MCP connection and
-requested tools. For headless use, configure the needed `Mcp(agent-memory:tool)`
-permissions in `.cursor/cli.json`; approving a server alone does not approve
-every tool. See [Cursor CLI permissions](https://cursor.com/docs/cli/reference/permissions).
+requested tools. Cursor names this plugin's server
+`plugin-agent-memory-agent-memory`. Headless tool permissions must use that name,
+not the standalone MCP configuration key `agent-memory`. For retrieval and batch
+coordination, merge these entries into `.cursor/cli.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Mcp(plugin-agent-memory-agent-memory:project_briefing)",
+      "Mcp(plugin-agent-memory-agent-memory:memory_get)",
+      "Mcp(plugin-agent-memory-agent-memory:claims_acquire)",
+      "Mcp(plugin-agent-memory-agent-memory:claims_renew)",
+      "Mcp(plugin-agent-memory-agent-memory:claims_release)"
+    ]
+  }
+}
+```
+
+Include other named tools needed by your workflow, such as `project_context_get`
+or `memory_update`, using the same prefix. A separately configured standalone
+server named `agent-memory` uses `Mcp(agent-memory:tool)` instead. The
+`--approve-mcps` flag approves connections; it does not grant every tool permission.
+See [Cursor CLI permissions](https://cursor.com/docs/cli/reference/permissions).
 
 For the IDE, place the plugin directory at
 `~/.cursor/plugins/local/agent-memory` and start a new agent session. For example,
@@ -103,6 +131,8 @@ may require their own instruction injection and MCP configuration.
 Use one installation route per host to avoid duplicate skills or connections.
 Choose the destination supported by the installed client, preserve unrelated
 configuration, and refresh or restart its session after installation.
+Check both the selected skill path and MCP source. User-level, repository-level,
+plugin, and compatibility discovery can expose different copies of the same name.
 
 ## Using the guidance
 
@@ -126,17 +156,28 @@ correct use. No particular memory needs to exist in a new project.
 ## Releases and updates
 
 [Plugin releases](https://github.com/rhymiz/agent-memory/releases) use tags such as
-`plugin-v0.1.0`, with `agent-memory-plugin-0.1.0.tar.gz`,
-`agent-memory-skill-0.1.0.tar.gz`, and `SHA256SUMS`. Verify the checksum and unpack
+`plugin-v0.1.1`, with `agent-memory-plugin-0.1.1.tar.gz`,
+`agent-memory-skill-0.1.1.tar.gz`, and `SHA256SUMS`. Verify the checksum and unpack
 the plugin archive; its `agent-memory/` directory is the complete plugin.
 The skill archive contains `shared-agent-memory/` for standalone installation.
 Neither archive requires Bun or Node to load its guidance.
 
 Marketplace installations update through the host's plugin manager; pinned Git
 refs remain pinned until changed. Local copies and standalone skills need an
-explicit copy/update from the new release. Keep the plugin's manifests at the
+explicit update from the new release. Unpack into a new directory, verify it, then
+replace the selected old bundle; copying over it can leave removed files behind.
+For symlink-based installations, update the source directory the link targets.
+Keep the plugin's manifests at the
 same version and test discovery after an update. Plugin releases do not replace
 the latest daemon release used by the Linux installer.
+
+For release verification, start a fresh headless session with the documented
+permissions. Have the agent identify its skill file and selected plugin version,
+retrieve a focused briefing, and expand a relevant full record when one exists.
+Exercise claim acquisition and release in an isolated project, including an invalid
+resource that should produce a readable error before correction. Inspect actual
+tool results and remaining claims. Missing knowledge and client/provider failures
+must remain visible in the verification result.
 
 ## Format references
 
