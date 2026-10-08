@@ -2,7 +2,9 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
-import { migrate } from "../src/db/migrate";
+import { ProjectAccess } from "../src/domain/access";
+import { BunSqliteStore } from "../src/db/bun-sqlite-store";
+import { memoryMigrations, migrate } from "../src/db/migrate";
 import initial from "../src/db/migrations/001_initial.sql" with { type: "text" };
 import { fixture, type Fixture } from "./helpers";
 
@@ -298,12 +300,14 @@ test("migration preserves existing memories and makes their FTS entries editable
       '{"source":"existing"}',
       1000,
     );
-    migrate(db);
-    migrate(db);
+    const store = new BunSqliteStore(db);
+    migrate(store, memoryMigrations, Date.now);
+    migrate(store, memoryMigrations, Date.now);
     const app = createApplication(
-      db,
+      store,
       { defaultTtlSeconds: 300, maxTtlSeconds: 3600 },
       f.model,
+      ProjectAccess.full,
       () => 2000,
     );
     const target = { projectId: "test-project", memoryId: "mem_original" };

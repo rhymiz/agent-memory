@@ -4,6 +4,8 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { createApplication } from "../src/application";
+import { ProjectAccess } from "../src/domain/access";
+import { BunSqliteStore } from "../src/db/bun-sqlite-store";
 import { fixture, TestEmbeddingModel, type Fixture } from "./helpers";
 
 let f: Fixture;
@@ -20,9 +22,10 @@ test("embedding coverage is specific to the running model", async () => {
     override readonly id = "next-model";
   }
   const app = createApplication(
-    f.db,
+    new BunSqliteStore(f.db),
     { defaultTtlSeconds: 300, maxTtlSeconds: 3600 },
     new NextModel(),
+    ProjectAccess.full,
   );
   expect(app.inspection.stats({}).embeddings).toEqual({
     modelId: "next-model",

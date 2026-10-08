@@ -2,16 +2,26 @@ import { z } from "zod";
 import * as c from "../domain/contracts";
 import { errorResponse, type ErrorCode } from "../domain/errors";
 
-const optionsSchema = z.strictObject({
-  baseUrl: z.url(),
-  projectId: c.identifier,
-  agentId: c.identifier,
-  timeoutMs: z.number().int().positive().optional(),
-});
+const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const optionsSchema = z
+  .strictObject({
+    baseUrl: z.url(),
+    projectId: c.identifier,
+    agentId: c.identifier,
+    apiKey: z.string().min(1).optional(),
+    timeoutMs: z.number().int().positive().optional(),
+  })
+  // Credentials and memory content must not cross the network in plain text.
+  .refine((options) => {
+    const url = new URL(options.baseUrl);
+    return url.protocol === "https:" || loopbackHosts.has(url.hostname);
+  }, "baseUrl must use https unless it is a loopback address.");
 export interface MemoryClientOptions {
   baseUrl: string;
   projectId: string;
   agentId: string;
+  // Hosted service API key, sent as a Bearer token. The local daemon needs none.
+  apiKey?: string;
   timeoutMs?: number;
 }
 
@@ -46,8 +56,12 @@ export class MemoryClient {
   ): Promise<T> {
     const response = await fetch(new URL(path, this.options.baseUrl), {
       method,
-      headers:
-        body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers: {
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(this.options.apiKey === undefined
+          ? {}
+          : { Authorization: `Bearer ${this.options.apiKey}` }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(this.options.timeoutMs ?? 120_000),
     });

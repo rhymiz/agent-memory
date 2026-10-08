@@ -14,5 +14,9 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "tests", "examples", "scripts"]
+  "include": ["src", "tests", "examples", "scripts"],
+  "exclude": [
+    "src/cloudflare/worker.ts",
+    "src/cloudflare/durable-object-store.ts"
+  ]
 }

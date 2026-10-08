@@ -1,7 +1,8 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { migrate } from "./migrate";
+import { BunSqliteStore } from "./bun-sqlite-store";
+import { memoryMigrations, migrate } from "./migrate";
 
 export function openDatabase(path: string): Database {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -10,7 +11,7 @@ export function openDatabase(path: string): Database {
     db.exec(
       "PRAGMA busy_timeout = 5000; PRAGMA locking_mode = EXCLUSIVE; PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;",
     );
-    migrate(db);
+    migrate(new BunSqliteStore(db), memoryMigrations, Date.now);
     return db;
   } catch (error) {
     db.close(true);

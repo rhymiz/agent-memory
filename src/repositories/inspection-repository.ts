@@ -8,10 +8,13 @@ import {
   type PageInput,
   type ProjectInput,
 } from "../domain/contracts";
-import { SqliteStore } from "./sqlite-store";
+import type { SqliteStore } from "./sqlite-store";
 
 export interface InspectionRepository {
-  projects(input: PageInput): ProjectInput[];
+  projects(
+    input: PageInput,
+    visible: "all" | readonly string[],
+  ): ProjectInput[];
   stats(input: InspectionInput, now: number, modelId: string): CorpusStats;
 }
 
@@ -23,12 +26,24 @@ const countRow = z.strictObject({ count });
 
 export class SqliteInspectionRepository implements InspectionRepository {
   constructor(private readonly store: SqliteStore) {}
-  projects(input: PageInput): ProjectInput[] {
+  projects(
+    input: PageInput,
+    visible: "all" | readonly string[],
+  ): ProjectInput[] {
+    const allowed = visible === "all" ? null : JSON.stringify(visible);
     return this.store.all(
       projectInput,
       `SELECT project_id AS projectId FROM (${projectIds})
-      WHERE (? IS NULL OR project_id > ?) ORDER BY project_id LIMIT ?`,
-      [input.after ?? null, input.after ?? null, (input.limit ?? 50) + 1],
+      WHERE (? IS NULL OR project_id > ?)
+      AND (? IS NULL OR project_id IN (SELECT value FROM json_each(?)))
+      ORDER BY project_id LIMIT ?`,
+      [
+        input.after ?? null,
+        input.after ?? null,
+        allowed,
+        allowed,
+        (input.limit ?? 50) + 1,
+      ],
     );
   }
   stats(input: InspectionInput, now: number, modelId: string): CorpusStats {

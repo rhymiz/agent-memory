@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
+import { ProjectAccess } from "../src/domain/access";
+import { BunSqliteStore } from "../src/db/bun-sqlite-store";
 import { startHttpServer } from "../src/api/server";
 import { openDatabase } from "../src/db/database";
 import { MemoryClient } from "../src/client/memory-client";
@@ -48,9 +50,10 @@ export function fixture(model: EmbeddingModel = new TestEmbeddingModel()) {
   const db = openDatabase(dbPath);
   let time = 1_789_063_200_000;
   const app = createApplication(
-    db,
+    new BunSqliteStore(db),
     { defaultTtlSeconds: 300, maxTtlSeconds: 3600 },
     model,
+    ProjectAccess.full,
     () => time,
   );
   const http = startHttpServer(app, { host: "127.0.0.1", port: 0 });

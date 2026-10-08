@@ -3,7 +3,7 @@ import {
   type Decision,
   type DecisionsInput,
 } from "../domain/contracts";
-import { SqliteStore } from "./sqlite-store";
+import type { SqliteStore } from "./sqlite-store";
 
 export interface DecisionRepository {
   get(projectId: string, id: string): Decision | null;

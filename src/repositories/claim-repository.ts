@@ -1,5 +1,5 @@
 import { claimSchema, type Claim, type ClaimsInput } from "../domain/contracts";
-import { SqliteStore } from "./sqlite-store";
+import type { SqliteStore } from "./sqlite-store";
 
 export interface ClaimRepository {
   get(id: string): Claim | null;

@@ -305,6 +305,92 @@ both architectures pass, the workflow creates a GitHub release containing
 `memd-linux-x64`, `memd-linux-arm64`, `SHA256SUMS`, and `install.sh`. Branch and
 manual runs verify builds without publishing a release.
 
+## Hosted service on Cloudflare
+
+Agent Memory also runs as a Cloudflare Worker for agents on several machines. Both
+deployment modes compose the same contracts, services, repositories, migrations,
+REST router and MCP tools; only the composition root, SQL driver, embedding model
+and request policy differ.
+
+| Mode    | Runtime                         | Storage                     | Embeddings                       | Access                                     |
+| ------- | ------------------------------- | --------------------------- | -------------------------------- | ------------------------------------------ |
+| Binary  | `memd` on a developer machine   | Local SQLite (`bun:sqlite`) | Bundled ONNX EmbeddingGemma      | Loopback Host/Origin validation            |
+| Service | Worker + SQLite Durable Objects | One Durable Object/account  | Workers AI `embeddinggemma-300m` | API keys with project and read/write grant |
+
+The Worker authenticates every request, including `/health`, then forwards it to the
+key's account Durable Object. Account identity comes only from the key, so two
+accounts using the same project ID never share data. A separate credential registry
+Durable Object stores key hashes; revocation applies to the next request.
+
+### Deploy
+
+```sh
+bunx wrangler login
+bunx wrangler secret put AGENT_MEMORY_ADMIN_TOKEN   # long random value
+AGENT_MEMORY_DOMAIN=memory.example.com bun run cf:deploy
+```
+
+`cf:deploy` runs `wrangler deploy --domain "$AGENT_MEMORY_DOMAIN"`. The committed
+[wrangler.jsonc](wrangler.jsonc) names no domain or account; keep
+`AGENT_MEMORY_DOMAIN` and `CLOUDFLARE_ACCOUNT_ID` in the environment or an
+uncommitted `.env`. `bun run cf:build` bundles the Worker without uploading it, and
+`bun run typecheck` regenerates the runtime types and checks both targets.
+
+### API keys
+
+Each key belongs to one account and grants either listed project IDs or all of the
+account's projects, with `read` or `write` access (write includes read). Projects
+are still created by their first write. Issue a separate key per installation so
+one can be revoked without affecting others.
+
+```sh
+export AGENT_MEMORY_URL=https://memory.example.com
+export AGENT_MEMORY_ADMIN_TOKEN=…
+bun run admin keys create --account acme --name ci --projects web,api --access write --expires-days 90
+bun run admin keys list --account acme
+bun run admin keys revoke key_…
+```
+
+The token is printed once; only its SHA-256 hash is stored. Missing, malformed,
+unknown, revoked and expired keys all return `401 UNAUTHORIZED`. A project outside
+the grant or a write with a read key returns `403 FORBIDDEN`; claims in projects
+outside the grant are reported as `CLAIM_NOT_FOUND`. `projects_list` shows only
+granted projects, and a key limited to specific projects must pass `projectId` to
+`corpus_stats`. Each key is limited to 600 requests per minute (`429
+RATE_LIMITED`). Browser `Origin` headers are rejected. Agent IDs remain
+self-reported attribution, not identity.
+
+`MemoryClient` takes the key as `apiKey` and refuses a non-loopback `baseUrl` that
+is not `https`. Configure MCP hosts with the endpoint and a Bearer header, supplying the key from
+the environment rather than the configuration file:
+
+```json
+{
+  "mcpServers": {
+    "agent-memory": {
+      "url": "https://memory.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${AGENT_MEMORY_API_KEY}" }
+    }
+  }
+}
+```
+
+### Differences from the binary
+
+- **Embeddings.** Workers AI has no tokenizer in the Worker, so documents are split
+  by characters (640 with 80 overlap, short paragraphs grouped) and queries are
+  clipped to 640 characters, keeping inputs inside the model's context even for
+  byte-fallback scripts. The hosted model ID differs from the binary's, so vectors
+  are never mixed. Retrieval quality against the local model has not been measured.
+- **Reindexing.** The daemon indexes before serving. The Durable Object migrates
+  before serving but indexes from an alarm in batches of 50, so after a model change
+  memories without current vectors are found only by lexical search until indexing
+  completes.
+- **Verification.** Automated tests run the shared services, credentials, gateway
+  and authorization with the Bun SQLite driver. The Durable Object SQL driver,
+  Workers AI responses and Cloudflare bindings are not covered by automated tests;
+  check them in a staging deployment before relying on them.
+
 ## Configuration
 
 | Variable                         | Default                         |
@@ -337,6 +423,7 @@ const memory = new MemoryClient({
   baseUrl: "http://127.0.0.1:8787",
   projectId: "new-faces",
   agentId: "codex-01",
+  // apiKey: process.env.AGENT_MEMORY_API_KEY, for the hosted service
 });
 
 await memory.remember({
@@ -580,15 +667,18 @@ Multiple hosts must connect to the HTTP endpoint of that daemon. Launching a sep
 - **Decisions:** append new decisions and explicitly supersede an active predecessor in the same project. A predecessor can have only one successor. A stale attempt returns `DECISION_CONFLICT`. Status changes, the new decision and both events commit together.
 - **Activity:** append-only. Every successful mutation writes its semantic event in the same transaction. Newest first, with insertion order breaking timestamp ties. `since` is inclusive; deduplicate by event ID when polling. This is a bounded recent feed, not a complete replay/pagination protocol. Expiration events identify the original lease owner.
 
-Memories persist until explicitly deleted; context, decisions and activity persist indefinitely. Memory updates replace content in place and deletion removes the record and its search entry; there is no memory revision archive or undo API. `memory.updated` and `memory.deleted` activity records retain IDs, versions and actors, without copying the removed content. Existing memories are preserved during migration and begin at version 1. Agent IDs are self-reported identities, not authentication. The daemon accepts loopback access, validates Host/Origin and inputs, uses parameterized SQL, and exposes neither SQL nor filesystem access. There are no accounts, agent scheduling, background workers, cloud services or web UI.
+Memories persist until explicitly deleted; context, decisions and activity persist indefinitely. Memory updates replace content in place and deletion removes the record and its search entry; there is no memory revision archive or undo API. `memory.updated` and `memory.deleted` activity records retain IDs, versions and actors, without copying the removed content. Existing memories are preserved during migration and begin at version 1. Agent IDs are self-reported identities, not authentication. The daemon accepts loopback access, validates Host/Origin and inputs, uses parameterized SQL, and exposes neither SQL nor filesystem access. Accounts and API keys exist only in the [hosted service](#hosted-service-on-cloudflare). There is no agent scheduling or web UI.
 
 ## Implementation
 
 ```text
-HTTP / MCP → application services → repository interfaces → bun:sqlite
+binary:  HTTP / MCP → application services → repository interfaces → BunSqliteStore
+service: gateway → account Durable Object → HTTP / MCP → application services
+         → repository interfaces → DurableObjectSqliteStore
 ```
 
-`application.ts` wires one set of services and repositories. `domain/contracts.ts`
+`application.ts` wires one set of services and repositories over a `SqliteStore`
+and the caller's `ProjectAccess`; the daemon passes full access. `domain/contracts.ts`
 defines transport schemas and inferred types; SQLite rows and SDK responses are
 validated at their respective boundaries. Single and batch acquisition share
 `ClaimService.acquireMany()`. Transactions cover each domain mutation and its

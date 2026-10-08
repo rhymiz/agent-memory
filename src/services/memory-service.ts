@@ -1,3 +1,4 @@
+import type { ProjectAccess } from "../domain/access";
 import type {
   Memory,
   RememberInput,
@@ -11,6 +12,7 @@ import type {
   MemoryListInput,
 } from "../domain/contracts";
 import { AppError } from "../domain/errors";
+import { newId } from "../domain/ids";
 import type { MemoryRepository } from "../repositories/memory-repository";
 import type { UnitOfWork } from "../repositories/sqlite-store";
 import { ActivityService, type Clock } from "./activity-service";
@@ -26,6 +28,7 @@ export class MemoryService {
     private readonly activity: ActivityService,
     private readonly now: Clock,
     private readonly model: EmbeddingModel,
+    private readonly access: ProjectAccess,
   ) {}
   private track<T>(operation: () => Promise<T>): Promise<T> {
     const task = operation();
@@ -45,10 +48,14 @@ export class MemoryService {
       throw new Error("Model returned no document embeddings");
     return vectors.map((vector) => normalized(vector, this.model.dimensions));
   }
-  async reindex(): Promise<number> {
+  // Indexes memories lacking current-model vectors, up to limit; returns how many it indexed.
+  async reindex(limit = Number.POSITIVE_INFINITY): Promise<number> {
     let count = 0;
-    while (true) {
-      const batch = this.repository.unindexed(this.model.id, 50);
+    while (count < limit) {
+      const batch = this.repository.unindexed(
+        this.model.id,
+        Math.min(50, limit - count),
+      );
       if (!batch.length) return count;
       for (const memory of batch) {
         const vectors = await this.embed(memory.content);
@@ -63,8 +70,10 @@ export class MemoryService {
         });
       }
     }
+    return count;
   }
   remember(input: RememberInput): Promise<Memory> {
+    this.access.require(input.projectId, "write");
     return this.track(() => this.createIndexed(input));
   }
   private async createIndexed(input: RememberInput): Promise<Memory> {
@@ -73,7 +82,7 @@ export class MemoryService {
       const now = this.now();
       const memory: Memory = {
         ...input,
-        id: `mem_${Bun.randomUUIDv7()}`,
+        id: newId("mem"),
         importance: input.importance ?? null,
         metadata: input.metadata ?? null,
         createdAt: now,
@@ -95,9 +104,11 @@ export class MemoryService {
     });
   }
   search(input: SearchInput): Promise<{ items: Memory[] }> {
+    this.access.require(input.projectId, "read");
     return this.track(() => this.retrieve(input));
   }
   list(input: MemoryListInput) {
+    this.access.require(input.projectId, "read");
     return page(
       this.repository.list(input),
       input.limit ?? 50,
@@ -105,6 +116,7 @@ export class MemoryService {
     );
   }
   async searchCompact(input: CompactSearchInput): Promise<CompactSearchResult> {
+    this.access.require(input.projectId, "read");
     const limit = input.limit ?? 8;
     const { items } = await this.search({
       ...input,
@@ -180,6 +192,7 @@ export class MemoryService {
     });
   }
   get(input: MemoryGetInput): Memory {
+    this.access.require(input.projectId, "read");
     const memory = this.repository.get(input);
     if (!memory)
       throw new AppError(
@@ -202,6 +215,7 @@ export class MemoryService {
     );
   }
   update(input: MemoryUpdateInput): Promise<Memory> {
+    this.access.require(input.projectId, "write");
     return this.track(() => this.updateIndexed(input));
   }
   private async updateIndexed(input: MemoryUpdateInput): Promise<Memory> {
@@ -246,6 +260,7 @@ export class MemoryService {
     });
   }
   delete(input: MemoryDeleteInput): MemoryDeleted {
+    this.access.require(input.projectId, "write");
     return this.transaction.run(() => {
       const current = this.get(input);
       if (current.version !== input.expectedVersion)

@@ -1,6 +1,7 @@
 # Agent Memory development
 
-This repository builds a local Bun daemon and TypeScript client. Read the relevant
+This repository builds a local Bun daemon, a hosted Cloudflare service composed from
+the same application, and a TypeScript client. Read the relevant
 [development contracts](docs/development.md) before changing a domain boundary.
 The [README](README.md) documents the public API and runtime setup.
 
@@ -15,6 +16,11 @@ The [README](README.md) documents the public API and runtime setup.
 - Look up version-matched documentation for uncertain APIs.
 - Return complete, typed domain data through both HTTP and MCP. Consumers should
   not repair backend shapes or decode stored JSON.
+- Keep runtime differences in composition roots and their adapters; shared modules
+  use no Bun or Workers globals. Check every new project-scoped operation against
+  the caller's project access.
+- Keep the production domain, Cloudflare account and secrets out of committed files;
+  supply them at deploy time.
 
 These are repository owner policies. The development contracts connect them to
 implementation evidence, existing assertions, and review criteria where automated
@@ -54,8 +60,9 @@ Use [baseline-project](.agents/skills/baseline-project/SKILL.md) for requested
 guidance setup, audit, or refresh. Ordinary feature work reads the relevant rules;
 it does not trigger a repository-wide guidance rewrite.
 
-`bun run check` runs formatting, strict typing, and the application tests.
+`bun run check` runs formatting, strict typing for the binary and Worker, and the
+application tests.
 `bun run baseline:verify` checks recorded evidence and guidance, then runs that
 same suite once. See [verification](docs/development.md#verification) for setup,
 drift review, and packaging checks. A passing baseline does not prove architecture
-quality, live daemon deployment, or automatic skill selection.
+quality, live daemon or Cloudflare deployment, or automatic skill selection.

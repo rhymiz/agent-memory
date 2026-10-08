@@ -3,9 +3,11 @@ import {
   type StdioServerHandle,
 } from "@modelcontextprotocol/server/stdio";
 import { createApplication } from "./application";
+import { ProjectAccess } from "./domain/access";
 import { startHttpServer } from "./api/server";
 import { readConfig } from "./config";
 import { openDatabase } from "./db/database";
+import { BunSqliteStore } from "./db/bun-sqlite-store";
 import { createMcpServer } from "./mcp/server";
 import { LocalEmbeddingModel } from "./embeddings/model";
 
@@ -27,7 +29,12 @@ async function main(): Promise<void> {
   try {
     console.error(JSON.stringify({ level: "info", event: "search.loading" }));
     model = await LocalEmbeddingModel.load();
-    app = createApplication(db, config, model);
+    app = createApplication(
+      new BunSqliteStore(db),
+      config,
+      model,
+      ProjectAccess.full,
+    );
     const indexed = await app.memories.reindex();
     console.error(
       JSON.stringify({

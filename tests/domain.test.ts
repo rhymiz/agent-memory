@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { AppError, type ErrorCode } from "../src/domain/errors";
 import { openDatabase } from "../src/db/database";
 import { createApplication } from "../src/application";
+import { ProjectAccess } from "../src/domain/access";
+import { BunSqliteStore } from "../src/db/bun-sqlite-store";
 import { readConfig } from "../src/config";
 import { readRuntimeDirectory } from "../src/embeddings/assets";
 import { fixture, type Fixture } from "./helpers";
@@ -96,12 +98,13 @@ describe("memory and persistence", () => {
     const reopened = openDatabase(f.dbPath);
     try {
       const app = createApplication(
-        reopened,
+        new BunSqliteStore(reopened),
         {
           defaultTtlSeconds: 300,
           maxTtlSeconds: 3600,
         },
         f.model,
+        ProjectAccess.full,
       );
       expect(
         (

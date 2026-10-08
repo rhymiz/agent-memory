@@ -4,6 +4,8 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { createApplication } from "../src/application";
+import { ProjectAccess } from "../src/domain/access";
+import { BunSqliteStore } from "../src/db/bun-sqlite-store";
 import { memoriesResult, memorySchema } from "../src/domain/contracts";
 import { cosine } from "../src/domain/embedding";
 import { LocalEmbeddingModel } from "../src/embeddings/model";
@@ -150,7 +152,12 @@ test("backfill is resumable, skips current vectors, and rebuilds for a changed m
     class NewModel extends ControlledModel {
       override readonly id = "next-model";
     }
-    const next = createApplication(f.db, policy, new NewModel());
+    const next = createApplication(
+      new BunSqliteStore(f.db),
+      policy,
+      new NewModel(),
+      ProjectAccess.full,
+    );
     expect(await next.memories.reindex()).toBe(1);
     expect(
       f.db

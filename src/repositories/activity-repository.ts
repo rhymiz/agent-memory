@@ -3,7 +3,7 @@ import {
   type ActivityEvent,
   type ActivityInput,
 } from "../domain/contracts";
-import { SqliteStore, storedMetadata } from "./sqlite-store";
+import { storedMetadata, type SqliteStore } from "./sqlite-store";
 
 export interface ActivityRepository {
   insert(event: ActivityEvent): void;

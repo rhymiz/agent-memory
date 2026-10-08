@@ -1,3 +1,4 @@
+import type { ProjectAccess } from "../domain/access";
 import type {
   AcquireInput,
   Claim,
@@ -14,6 +15,7 @@ import type {
   ClaimAdvisory,
 } from "../domain/contracts";
 import { AppError } from "../domain/errors";
+import { newId } from "../domain/ids";
 import { normalizeResource } from "../domain/resource";
 import { scheduleLease } from "../domain/lease";
 import type { ClaimRepository } from "../repositories/claim-repository";
@@ -33,6 +35,7 @@ export class ClaimService {
     private readonly activity: ActivityService,
     private readonly now: Clock,
     private readonly policy: ClaimPolicy,
+    private readonly access: ProjectAccess,
   ) {}
   private ttl(value?: number): number {
     const ttl = value ?? this.policy.defaultTtlSeconds;
@@ -76,6 +79,7 @@ export class ClaimService {
     this.transaction.run(() => this.removeExpired(projectId, this.now()));
   }
   acquire(input: AcquireInput): ClaimGranted {
+    this.access.require(input.projectId, "write");
     const { resource, ...scope } = input;
     const acquired = this.acquireMany({ ...scope, resources: [resource] });
     return {
@@ -86,6 +90,7 @@ export class ClaimService {
     };
   }
   acquireMany(input: AcquireClaimsInput): ClaimsGranted {
+    this.access.require(input.projectId, "write");
     const resources = input.resources.map(normalizeResource).sort();
     if (new Set(resources).size !== resources.length)
       throw new AppError(
@@ -114,7 +119,7 @@ export class ClaimService {
         }
       }
       const claims: Claim[] = resources.map((resource) => ({
-        id: `clm_${Bun.randomUUIDv7()}`,
+        id: newId("clm"),
         projectId: input.projectId,
         agentId: input.agentId,
         resource,
@@ -190,13 +195,19 @@ export class ClaimService {
   }
   private owned(input: ReleaseInput, now: number, projectId?: string): Claim {
     const claim = this.repository.get(input.claimId);
-    if (!claim || (projectId !== undefined && claim.projectId !== projectId))
+    // Claims in projects outside the credential are indistinguishable from missing ones.
+    if (
+      !claim ||
+      (projectId !== undefined && claim.projectId !== projectId) ||
+      !this.access.allows(claim.projectId)
+    )
       throw new AppError(
         "CLAIM_NOT_FOUND",
         "Claim does not exist or has already been removed.",
         404,
         { claimId: input.claimId },
       );
+    this.access.require(claim.projectId, "write");
     if (claim.agentId !== input.agentId)
       throw new AppError(
         "CLAIM_NOT_OWNER",
@@ -226,6 +237,7 @@ export class ClaimService {
     });
   }
   releaseMany(input: ReleaseClaimsInput): ClaimsReleased {
+    this.access.require(input.projectId, "write");
     return this.transaction.run(() => {
       const now = this.now();
       const claims = input.claimIds.map((claimId) =>
@@ -245,6 +257,7 @@ export class ClaimService {
     });
   }
   renewMany(input: RenewClaimsInput): ClaimsRenewed {
+    this.access.require(input.projectId, "write");
     const ttl = this.ttl(input.ttlSeconds);
     return this.transaction.run(() => {
       const now = this.now();
@@ -294,6 +307,7 @@ export class ClaimService {
     return { claims: renewed, summary };
   }
   list(input: ClaimsInput) {
+    this.access.require(input.projectId, "read");
     const resource =
       input.resource === undefined
         ? undefined

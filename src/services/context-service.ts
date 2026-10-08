@@ -1,3 +1,4 @@
+import type { ProjectAccess } from "../domain/access";
 import type {
   ContextUpdateInput,
   ProjectContext,
@@ -14,8 +15,10 @@ export class ContextService {
     private readonly transaction: UnitOfWork,
     private readonly activity: ActivityService,
     private readonly now: Clock,
+    private readonly access: ProjectAccess,
   ) {}
   find(input: ProjectInput): ProjectContext | null {
+    this.access.require(input.projectId, "read");
     return this.repository.get(input.projectId);
   }
   get(input: ProjectInput): ProjectContext {
@@ -29,6 +32,7 @@ export class ContextService {
     return context;
   }
   update(input: ContextUpdateInput): ProjectContext {
+    this.access.require(input.projectId, "write");
     return this.transaction.run(() => {
       const current = this.repository.get(input.projectId);
       const actualVersion = current?.version ?? 0;

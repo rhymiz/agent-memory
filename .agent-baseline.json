@@ -19,7 +19,10 @@
         "docs/development.md",
         "docs/agent-instructions.md",
         "skills/shared-agent-memory/SKILL.md",
-        "docs/outcome-tracking.md"
+        "docs/outcome-tracking.md",
+        "src/cloudflare/worker.ts",
+        "wrangler.jsonc",
+        "src/domain/access.ts"
       ]
     },
     {
@@ -78,7 +81,28 @@
         ".agents/plugins/marketplace.json",
         ".claude-plugin/marketplace.json",
         ".cursor-plugin/marketplace.json",
-        "plugins/agent-memory/README.md"
+        "plugins/agent-memory/README.md",
+        "src/cloudflare/worker.ts",
+        "src/cloudflare/durable-object-store.ts",
+        "src/cloudflare/workers-ai-model.ts",
+        "src/api/handler.ts",
+        "src/api/gateway.ts",
+        "src/api/admin-router.ts",
+        "src/api/server.ts",
+        "src/domain/access.ts",
+        "src/domain/credentials.ts",
+        "src/domain/ids.ts",
+        "src/domain/errors.ts",
+        "src/services/credential-service.ts",
+        "src/repositories/credential-repository.ts",
+        "src/db/bun-sqlite-store.ts",
+        "src/db/migrate.ts",
+        "src/db/migrations/credentials/001_credentials.sql",
+        "wrangler.jsonc",
+        "tsconfig.worker.json",
+        "scripts/admin.ts",
+        "scripts/deploy-cloudflare.sh",
+        "src/client/memory-client.ts"
       ]
     },
     {
@@ -149,7 +173,33 @@
         ".agents/plugins/marketplace.json",
         ".claude-plugin/marketplace.json",
         ".cursor-plugin/marketplace.json",
-        "plugins/agent-memory/README.md"
+        "plugins/agent-memory/README.md",
+        "src/cloudflare/worker.ts",
+        "src/cloudflare/durable-object-store.ts",
+        "src/cloudflare/workers-ai-model.ts",
+        "src/api/handler.ts",
+        "src/api/gateway.ts",
+        "src/api/admin-router.ts",
+        "src/api/server.ts",
+        "src/domain/access.ts",
+        "src/domain/credentials.ts",
+        "src/domain/ids.ts",
+        "src/domain/errors.ts",
+        "src/services/credential-service.ts",
+        "src/repositories/credential-repository.ts",
+        "src/db/bun-sqlite-store.ts",
+        "src/db/migrate.ts",
+        "src/db/migrations/credentials/001_credentials.sql",
+        "wrangler.jsonc",
+        "tsconfig.worker.json",
+        "scripts/admin.ts",
+        "scripts/deploy-cloudflare.sh",
+        "tests/gateway.test.ts",
+        "tests/hosted-helpers.ts",
+        "tests/handler.test.ts",
+        "tests/workers-ai-model.test.ts",
+        "tests/client.test.ts",
+        "tests/ids.test.ts"
       ]
     },
     {
@@ -211,7 +261,9 @@
         "src/services/inspection-service.ts",
         "tests/inspection.test.ts",
         "tests/search-filters.test.ts",
-        "tests/decision-search.test.ts"
+        "tests/decision-search.test.ts",
+        "src/domain/access.ts",
+        "tests/gateway.test.ts"
       ]
     },
     {
@@ -223,7 +275,9 @@
         "src/config.ts",
         "tests/claim-renewal.test.ts",
         "tests/domain.test.ts",
-        "tests/claim-batches.test.ts"
+        "tests/claim-batches.test.ts",
+        "src/domain/access.ts",
+        "tests/gateway.test.ts"
       ]
     },
     {
@@ -296,7 +350,11 @@
         ".claude-plugin/marketplace.json",
         ".cursor-plugin/marketplace.json",
         "plugins/agent-memory/skills/shared-agent-memory/SKILL.md",
-        "docs/development.md"
+        "docs/development.md",
+        {
+          "path": "README.md",
+          "heading": "Hosted service on Cloudflare"
+        }
       ]
     }
   ],

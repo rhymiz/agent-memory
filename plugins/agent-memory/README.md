@@ -12,7 +12,11 @@ on the machine running the agent. The plugin connects over HTTP to
 `http://127.0.0.1:8787/mcp`; it does not start another daemon or own a database.
 Check `curl http://127.0.0.1:8787/health` before connecting.
 Remote or cloud agents need an endpoint reachable from their own runtime;
-their loopback address does not refer to your laptop.
+their loopback address does not refer to your laptop. For the
+[hosted service](https://github.com/rhymiz/agent-memory#hosted-service-on-cloudflare),
+configure the host's MCP connection with its `https` endpoint and an
+`Authorization: Bearer` header supplied from the environment instead of this
+plugin's loopback configuration.
 
 Plugin versions are independent of daemon versions. Updating this plugin updates
 guidance and connection configuration. It does not install or restart memd.
@@ -27,7 +31,7 @@ codex plugin add agent-memory@agent-memory
 Start a new session and select Agent Memory. The repository marketplace is
 `.agents/plugins/marketplace.json`. The package includes both a portable
 `plugin.json` and the `.codex-plugin/plugin.json` compatibility manifest.
-For an exact release, add the marketplace with `--ref plugin-v0.1.1`.
+For an exact release, add the marketplace with `--ref plugin-v0.1.2`.
 
 ## Claude Code
 
@@ -156,8 +160,8 @@ correct use. No particular memory needs to exist in a new project.
 ## Releases and updates
 
 [Plugin releases](https://github.com/rhymiz/agent-memory/releases) use tags such as
-`plugin-v0.1.1`, with `agent-memory-plugin-0.1.1.tar.gz`,
-`agent-memory-skill-0.1.1.tar.gz`, and `SHA256SUMS`. Verify the checksum and unpack
+`plugin-v0.1.2`, with `agent-memory-plugin-0.1.2.tar.gz`,
+`agent-memory-skill-0.1.2.tar.gz`, and `SHA256SUMS`. Verify the checksum and unpack
 the plugin archive; its `agent-memory/` directory is the complete plugin.
 The skill archive contains `shared-agent-memory/` for standalone installation.
 Neither archive requires Bun or Node to load its guidance.

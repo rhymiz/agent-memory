@@ -37,6 +37,47 @@ and briefings. Type checking catches incompatible declared types, but choosing t
 right concept, avoiding cast bypasses, and keeping imports at module scope require
 source review. There is no dedicated architecture or import-policy linter.
 
+## Deployment modes and authorization
+
+The daemon and the [hosted service](../README.md#hosted-service-on-cloudflare)
+compose the same application. Runtime differences belong in the composition roots
+([index.ts](../src/index.ts), [worker.ts](../src/cloudflare/worker.ts)) and their
+adapters: a `SqliteStore` driver, an `EmbeddingModel`, and a `RequestPolicy`.
+Shared modules must not use Bun or Workers globals; IDs come from the portable
+generator in [ids.ts](../src/domain/ids.ts). [tsconfig.json](../tsconfig.json)
+checks the binary, tests and shared code with Bun types;
+[tsconfig.worker.json](../tsconfig.worker.json) checks the Worker against generated
+runtime types. `bun run typecheck` runs both. [Handler tests](../tests/handler.test.ts)
+cover the shared body limit, policy rejection and response headers.
+
+Drivers report changed rows with `changes()`, excluding trigger writes, and return
+BLOBs as `Uint8Array`. The Durable Object driver joins nested units to the outer
+`transactionSync()`; code must not catch an inner unit's failure and continue.
+
+`ProjectAccess` is injected per request and checked by each service before any
+project read or write, so HTTP routes, MCP tools and MCP resources share one
+decision. A new project-scoped service method needs the same check. Claims outside
+the grant are reported as missing. Inspection lists only granted projects and
+requires `projectId` for restricted keys. [Gateway tests](../tests/gateway.test.ts)
+compose the real credential service, gateway and per-account applications over Bun
+SQLite. They cover invalid, revoked and expired keys, throttled last-use updates,
+administrator authentication, read-only keys, ungranted projects over HTTP and both
+MCP protocol versions, cross-account isolation with matching project IDs, inspection
+filtering, and rate limiting. Removing the access check or the revocation check
+fails them.
+
+The Durable Object driver, Workers AI output, RPC transfer of `Request`/`Response`,
+rate-limit bindings and alarm scheduling have no automated tests. Exercise them in a
+staging deployment; Bun tests do not establish their behavior.
+
+The production hostname, Cloudflare account ID and secrets are supplied at deploy
+time (`AGENT_MEMORY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`, `wrangler secret put`). No
+check enforces this; before committing, confirm that `wrangler.jsonc` has no
+`routes`, `route` or `account_id` and that no committed file names the production
+hostname.
+[Workers AI model tests](../tests/workers-ai-model.test.ts) cover chunk bounds,
+batching, prompts and output validation with a recorded runner only.
+
 ## Persistence and concurrency
 
 Keep each mutation, its activity events, and affected search indexes atomic.
@@ -141,6 +182,12 @@ of another checkout or a globally installed skill.
 - `bun run baseline:check` reports drift without running project commands.
 - `bun run baseline:verify` rejects drift, validates guidance, runs `bun run check`
   once, and rejects changes to monitored inputs during verification.
+
+`bun run typecheck` regenerates the ignored `worker-configuration.d.ts` with
+`wrangler types` before checking both targets. For Worker or binding changes, also
+run `bun run cf:build`, which bundles the Worker without uploading it; it does not
+exercise the Workers runtime. Deployment (`cf:deploy`) and key administration
+(`admin`) use credentials and are never part of the check list.
 
 After evidence changes, inspect the affected instructions and relevant assertions.
 Update or affirm the guidance, then run `bun run baseline:record` and

@@ -1,5 +1,5 @@
 import { contextSchema, type ProjectContext } from "../domain/contracts";
-import { SqliteStore } from "./sqlite-store";
+import type { SqliteStore } from "./sqlite-store";
 
 export interface ContextRepository {
   get(projectId: string): ProjectContext | null;

@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite";
-import { SqliteStore } from "./repositories/sqlite-store";
+import type { SqliteStore } from "./repositories/sqlite-store";
+import type { ProjectAccess } from "./domain/access";
 import { SqliteActivityRepository } from "./repositories/activity-repository";
 import { SqliteClaimRepository } from "./repositories/claim-repository";
 import { SqliteContextRepository } from "./repositories/context-repository";
@@ -18,15 +18,16 @@ import packageInfo from "../package.json";
 import type { EmbeddingModel } from "./domain/embedding";
 
 export function createApplication(
-  db: Database,
+  store: SqliteStore,
   policy: ClaimPolicy,
   model: EmbeddingModel,
+  access: ProjectAccess,
   now: Clock = Date.now,
 ) {
-  const store = new SqliteStore(db);
   const activity = new ActivityService(
     new SqliteActivityRepository(store),
     now,
+    access,
   );
   const claims = new ClaimService(
     new SqliteClaimRepository(store),
@@ -34,6 +35,7 @@ export function createApplication(
     activity,
     now,
     policy,
+    access,
   );
   const memories = new MemoryService(
     new SqliteMemoryRepository(store),
@@ -41,18 +43,21 @@ export function createApplication(
     activity,
     now,
     model,
+    access,
   );
   const context = new ContextService(
     new SqliteContextRepository(store),
     store,
     activity,
     now,
+    access,
   );
   const decisions = new DecisionService(
     new SqliteDecisionRepository(store),
     store,
     activity,
     now,
+    access,
   );
   return {
     inspection: new InspectionService(
@@ -60,6 +65,7 @@ export function createApplication(
       store,
       now,
       model.id,
+      access,
     ),
     memories,
     claims,
@@ -74,6 +80,7 @@ export function createApplication(
     ),
     activity: {
       recent(input: ActivityInput) {
+        access.require(input.projectId, "read");
         claims.expire(input.projectId);
         return activity.recent(input);
       },

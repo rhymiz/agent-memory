@@ -6,7 +6,9 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { createApplication } from "../src/application";
-import { migrate } from "../src/db/migrate";
+import { ProjectAccess } from "../src/domain/access";
+import { BunSqliteStore } from "../src/db/bun-sqlite-store";
+import { memoryMigrations, migrate } from "../src/db/migrate";
 import initial from "../src/db/migrations/001_initial.sql" with { type: "text" };
 import mutations from "../src/db/migrations/002_memory_mutations.sql" with { type: "text" };
 import embeddings from "../src/db/migrations/003_embeddings.sql" with { type: "text" };
@@ -77,12 +79,14 @@ test("decision indexes migrate existing records and roll back with failed supers
       "original",
       1,
     );
-    migrate(db);
-    migrate(db);
+    const store = new BunSqliteStore(db);
+    migrate(store, memoryMigrations, Date.now);
+    migrate(store, memoryMigrations, Date.now);
     const app = createApplication(
-      db,
+      store,
       { defaultTtlSeconds: 300, maxTtlSeconds: 3600 },
       f.model,
+      ProjectAccess.full,
     );
     expect(
       app.decisions.list({ projectId: "test-project", query: "footer" })

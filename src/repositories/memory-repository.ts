@@ -7,7 +7,7 @@ import {
   type MemoryFilter,
   type MemoryListInput,
 } from "../domain/contracts";
-import { SqliteStore, storedMetadata } from "./sqlite-store";
+import { storedMetadata, type SqliteStore } from "./sqlite-store";
 import { z } from "zod";
 import { normalized } from "../domain/embedding";
 
@@ -131,7 +131,6 @@ export class SqliteMemoryRepository implements MemoryRepository {
     );
   }
   update(memory: Memory, expectedVersion: number): boolean {
-    // Bun counts FTS trigger writes too; the unique ID limits the target to one memory.
     return (
       this.store.execute(
         `UPDATE memories SET type = ?, content = ?, importance = ?, metadata = ?,
@@ -149,7 +148,7 @@ export class SqliteMemoryRepository implements MemoryRepository {
           memory.id,
           expectedVersion,
         ],
-      ) > 0
+      ) === 1
     );
   }
   delete(input: MemoryDeleteInput): boolean {
@@ -157,7 +156,7 @@ export class SqliteMemoryRepository implements MemoryRepository {
       this.store.execute(
         "DELETE FROM memories WHERE project_id = ? AND id = ? AND version = ?",
         [input.projectId, input.memoryId, input.expectedVersion],
-      ) > 0
+      ) === 1
     );
   }
   search(input: SearchInput): Memory[] {

@@ -15,7 +15,10 @@ interface Route {
   handle: Handler;
 }
 
-async function body<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
+export async function body<T>(
+  request: Request,
+  schema: z.ZodType<T>,
+): Promise<T> {
   if (
     request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !==
     "application/json"

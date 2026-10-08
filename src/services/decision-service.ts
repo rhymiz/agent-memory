@@ -1,9 +1,11 @@
+import type { ProjectAccess } from "../domain/access";
 import type {
   Decision,
   DecisionInput,
   DecisionsInput,
 } from "../domain/contracts";
 import { AppError } from "../domain/errors";
+import { newId } from "../domain/ids";
 import type { DecisionRepository } from "../repositories/decision-repository";
 import type { UnitOfWork } from "../repositories/sqlite-store";
 import { ActivityService, type Clock } from "./activity-service";
@@ -14,12 +16,14 @@ export class DecisionService {
     private readonly transaction: UnitOfWork,
     private readonly activity: ActivityService,
     private readonly now: Clock,
+    private readonly access: ProjectAccess,
   ) {}
   record(input: DecisionInput): Decision {
+    this.access.require(input.projectId, "write");
     return this.transaction.run(() => {
       const decision: Decision = {
         ...input,
-        id: `dec_${Bun.randomUUIDv7()}`,
+        id: newId("dec"),
         reasoning: input.reasoning ?? null,
         status: "active",
         supersedesId: input.supersedesId ?? null,
@@ -72,6 +76,7 @@ export class DecisionService {
     });
   }
   list(input: DecisionsInput) {
+    this.access.require(input.projectId, "read");
     return { items: this.repository.list(input) };
   }
 }
