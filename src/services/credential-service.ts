@@ -101,7 +101,7 @@ export class CredentialService {
         this.repository.touch(keyId, now);
       return {
         accountId: stored.key.accountId,
-        keyId,
+        credentialId: keyId,
         grant: stored.key.grant,
       };
     });

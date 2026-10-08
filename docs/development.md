@@ -58,25 +58,45 @@ BLOBs as `Uint8Array`. The Durable Object driver joins nested units to the outer
 project read or write, so HTTP routes, MCP tools and MCP resources share one
 decision. A new project-scoped service method needs the same check. Claims outside
 the grant are reported as missing. Inspection lists only granted projects and
-requires `projectId` for restricted keys. [Gateway tests](../tests/gateway.test.ts)
-compose the real credential service, gateway and per-account applications over Bun
-SQLite. They cover invalid, revoked and expired keys, throttled last-use updates,
-administrator authentication, read-only keys, ungranted projects over HTTP and both
-MCP protocol versions, cross-account isolation with matching project IDs, inspection
-filtering, and rate limiting. Removing the access check or the revocation check
-fails them.
+requires `projectId` for restricted callers.
 
-The Durable Object driver, Workers AI output, RPC transfer of `Request`/`Response`,
-rate-limit bindings and alarm scheduling have no automated tests. Exercise them in a
-staging deployment; Bun tests do not establish their behavior.
+Every hosted caller is a `Principal`: an account, a credential ID and a grant. API
+keys resolve to one through the credential registry, passed to the OAuth provider's
+`resolveExternalToken`. OAuth tokens carry only a member reference and approved
+scopes ([sign-in.ts](../src/api/sign-in.ts) `memberTokenProps`); the Worker reads
+the member on every request, so revocation is immediate and scopes can only narrow
+the member's grant (`grantForScopes`). Do not put grants in token props or make
+scopes widen a grant. Sign-in completes authorization only for an active member
+resolved by provider and numeric subject, never by login.
+
+[Gateway tests](../tests/gateway.test.ts) compose the real credential service,
+gateways and per-account applications over Bun SQLite. They cover invalid, revoked
+and expired keys, throttled last-use updates, administrator authentication,
+read-only keys, ungranted projects over HTTP and both MCP protocol versions,
+cross-account isolation with matching project IDs, inspection filtering, and rate
+limiting. Removing the access check or the revocation check fails them.
+[Member tests](../tests/members.test.ts) cover member administration and conflicts,
+sign-in resolution by subject, scope narrowing (including a write scope on a read
+member), immediate revocation of existing tokens, and MCP use; a token table in
+[hosted-helpers.ts](../tests/hosted-helpers.ts) stands in for the OAuth provider's
+token validation. [Sign-in tests](../tests/sign-in.test.ts) drive the consent,
+GitHub and callback steps against recording fakes: escaping of client-supplied
+text, PKCE challenge derivation, chosen scopes, denial, non-member refusal and
+generic failures. [Workers AI model tests](../tests/workers-ai-model.test.ts) cover
+chunk bounds, batching, prompts and output validation with a recorded runner only.
+
+No automated test covers the OAuth provider library itself (metadata, dynamic
+registration, token issuance and refresh, KV storage, `resolveExternalToken`
+wiring), the real GitHub token exchange, the Durable Object driver, Workers AI
+output, RPC transfer of `Request`/`Response`, rate-limit bindings or alarm
+scheduling. Exercise them against a deployment; Bun tests do not establish their
+behavior.
 
 The production hostname, Cloudflare account ID and secrets are supplied at deploy
 time (`AGENT_MEMORY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`, `wrangler secret put`). No
 check enforces this; before committing, confirm that `wrangler.jsonc` has no
 `routes`, `route` or `account_id` and that no committed file names the production
 hostname.
-[Workers AI model tests](../tests/workers-ai-model.test.ts) cover chunk bounds,
-batching, prompts and output validation with a recorded runner only.
 
 ## Persistence and concurrency
 

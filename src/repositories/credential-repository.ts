@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { accessLevel, grant } from "../domain/access";
+import { accessLevel, grant, type Grant } from "../domain/access";
 import { identifier } from "../domain/contracts";
 import { apiKey, type ApiKey } from "../domain/credentials";
 import type { SqliteStore } from "./sqlite-store";
@@ -17,10 +17,14 @@ export interface CredentialRepository {
   touch(id: string, at: number): void;
 }
 
-const storedProjects = z.preprocess(
+// Grants store "all" or a JSON array of project IDs; shared by keys and members.
+export const storedProjects = z.preprocess(
   (value: unknown) => (value === "all" ? value : JSON.parse(String(value))),
   grant.shape.projects,
 );
+export function serializeProjects(projects: Grant["projects"]): string {
+  return projects === "all" ? "all" : JSON.stringify(projects);
+}
 const row = z
   .strictObject({
     id: identifier,
@@ -52,9 +56,7 @@ export class SqliteCredentialRepository implements CredentialRepository {
         key.accountId,
         key.name,
         secretHash,
-        key.grant.projects === "all"
-          ? "all"
-          : JSON.stringify(key.grant.projects),
+        serializeProjects(key.grant.projects),
         key.grant.access,
         key.createdAt,
         key.expiresAt,

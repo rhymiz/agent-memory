@@ -33,6 +33,7 @@
     "bun": ">=1.4.2"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.3",
     "@huggingface/tokenizers": "0.2.0",
     "@modelcontextprotocol/server": "2.0.0",
     "onnxruntime-node": "1.29.0",

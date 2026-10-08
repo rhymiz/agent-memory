@@ -44,3 +44,16 @@ export class ProjectAccess {
       );
   }
 }
+
+// OAuth scopes a person can approve. Write includes read.
+export const oauthScope = z.enum(["memory:read", "memory:write"]);
+export type OAuthScope = z.infer<typeof oauthScope>;
+export const oauthScopes = oauthScope.options;
+export const readScopes: OAuthScope[] = ["memory:read"];
+export const writeScopes: OAuthScope[] = ["memory:read", "memory:write"];
+
+// A token's effective grant: the member's grant, narrowed to read unless the
+// person approved memory:write. Scopes never widen a grant.
+export function grantForScopes(grant: Grant, scopes: readonly string[]): Grant {
+  return scopes.includes("memory:write") ? grant : { ...grant, access: "read" };
+}

@@ -49,8 +49,8 @@ accepts the memory filters; use small pages. `corpus_stats` returns a consistent
 aggregate read, optionally restricted by project. Pages are current reads, not a
 frozen snapshot across calls. Do not open or copy the live SQLite/WAL files to
 work around missing tools; report the capability gap on older daemons.
-On a hosted service, a key limited to specific projects lists only those projects
-and must pass `projectId` to `corpus_stats`.
+On a hosted service, a credential limited to specific projects lists only those
+projects and must pass `projectId` to `corpus_stats`.
 
 `maxBytes` caps one serialized UTF-8 JSON data payload, excluding the MCP envelope
 and its text/structured duplication. Default budgets are 12000 for compact search

@@ -317,18 +317,27 @@ and request policy differ.
 | Binary  | `memd` on a developer machine   | Local SQLite (`bun:sqlite`) | Bundled ONNX EmbeddingGemma      | Loopback Host/Origin validation            |
 | Service | Worker + SQLite Durable Objects | One Durable Object/account  | Workers AI `embeddinggemma-300m` | API keys with project and read/write grant |
 
-The Worker authenticates every request, including `/health`, then forwards it to the
-key's account Durable Object. Account identity comes only from the key, so two
-accounts using the same project ID never share data. A separate credential registry
-Durable Object stores key hashes; revocation applies to the next request.
+Two kinds of credential reach the same grant model. People sign in with GitHub
+through OAuth 2.1, and headless clients use API keys. The Worker authenticates every
+request, including `/health`, then forwards it to the caller's account Durable
+Object. Account identity comes only from the credential, so two accounts using the
+same project ID never share data. A separate credential registry Durable Object
+stores key hashes and members; revoking either applies to the next request.
 
 ### Deploy
 
 ```sh
 bunx wrangler login
 bunx wrangler secret put AGENT_MEMORY_ADMIN_TOKEN   # long random value
+bunx wrangler secret put GITHUB_CLIENT_ID
+bunx wrangler secret put GITHUB_CLIENT_SECRET
 AGENT_MEMORY_DOMAIN=memory.example.com bun run cf:deploy
 ```
+
+Create a [GitHub OAuth app](https://github.com/settings/developers) whose
+authorization callback URL is `https://<domain>/oauth/github/callback`, and store
+its client ID and secret as the two GitHub secrets. OAuth clients, grants and
+tokens live in the `OAUTH_KV` namespace bound in `wrangler.jsonc`.
 
 `cf:deploy` runs `wrangler deploy --domain "$AGENT_MEMORY_DOMAIN"`. The committed
 [wrangler.jsonc](wrangler.jsonc) names no domain or account; keep
@@ -336,12 +345,40 @@ AGENT_MEMORY_DOMAIN=memory.example.com bun run cf:deploy
 uncommitted `.env`. `bun run cf:build` bundles the Worker without uploading it, and
 `bun run typecheck` regenerates the runtime types and checks both targets.
 
+### Sign in with GitHub
+
+MCP hosts that support OAuth need only the endpoint; they discover the
+authorization server, register themselves, and open a browser to sign in:
+
+```json
+{
+  "mcpServers": { "agent-memory": { "url": "https://memory.example.com/mcp" } }
+}
+```
+
+The consent page shows the requesting client and where the result is sent, and
+offers `memory:read` or `memory:read` + `memory:write`. GitHub then verifies the
+person; no GitHub scopes are requested. Only members can finish signing in:
+
+```sh
+bun run admin members add --account acme --github octocat --projects web,api --access write
+bun run admin members list --account acme
+bun run admin members revoke mbr_…
+```
+
+Members are stored by GitHub's numeric user ID, so renaming a GitHub account keeps
+access. An identity can be an active member of one account at a time. A token's
+grant is the member's grant, narrowed to read unless `memory:write` was approved,
+and is read from the registry on every request: revoking a member rejects its
+tokens immediately. Access tokens last an hour and refresh for up to 30 days.
+
 ### API keys
 
-Each key belongs to one account and grants either listed project IDs or all of the
-account's projects, with `read` or `write` access (write includes read). Projects
-are still created by their first write. Issue a separate key per installation so
-one can be revoked without affecting others.
+Use API keys for clients that cannot open a browser, such as CI and production
+agents. Each key, like each member, belongs to one account and grants either listed
+project IDs or all of the account's projects, with `read` or `write` access (write
+includes read). Projects are still created by their first write. Issue a separate
+key per installation so one can be revoked without affecting others.
 
 ```sh
 export AGENT_MEMORY_URL=https://memory.example.com
@@ -352,12 +389,12 @@ bun run admin keys revoke key_…
 ```
 
 The token is printed once; only its SHA-256 hash is stored. Missing, malformed,
-unknown, revoked and expired keys all return `401 UNAUTHORIZED`. A project outside
+unknown, revoked and expired keys or OAuth tokens all return `401`. A project outside
 the grant or a write with a read key returns `403 FORBIDDEN`; claims in projects
 outside the grant are reported as `CLAIM_NOT_FOUND`. `projects_list` shows only
 granted projects, and a key limited to specific projects must pass `projectId` to
-`corpus_stats`. Each key is limited to 600 requests per minute (`429
-RATE_LIMITED`). Browser `Origin` headers are rejected. Agent IDs remain
+`corpus_stats`. Each key or member is limited to 600 requests per minute (`429
+RATE_LIMITED`). API and admin routes reject browser `Origin` headers. Agent IDs remain
 self-reported attribution, not identity.
 
 `MemoryClient` takes the key as `apiKey` and refuses a non-loopback `baseUrl` that
@@ -667,7 +704,7 @@ Multiple hosts must connect to the HTTP endpoint of that daemon. Launching a sep
 - **Decisions:** append new decisions and explicitly supersede an active predecessor in the same project. A predecessor can have only one successor. A stale attempt returns `DECISION_CONFLICT`. Status changes, the new decision and both events commit together.
 - **Activity:** append-only. Every successful mutation writes its semantic event in the same transaction. Newest first, with insertion order breaking timestamp ties. `since` is inclusive; deduplicate by event ID when polling. This is a bounded recent feed, not a complete replay/pagination protocol. Expiration events identify the original lease owner.
 
-Memories persist until explicitly deleted; context, decisions and activity persist indefinitely. Memory updates replace content in place and deletion removes the record and its search entry; there is no memory revision archive or undo API. `memory.updated` and `memory.deleted` activity records retain IDs, versions and actors, without copying the removed content. Existing memories are preserved during migration and begin at version 1. Agent IDs are self-reported identities, not authentication. The daemon accepts loopback access, validates Host/Origin and inputs, uses parameterized SQL, and exposes neither SQL nor filesystem access. Accounts and API keys exist only in the [hosted service](#hosted-service-on-cloudflare). There is no agent scheduling or web UI.
+Memories persist until explicitly deleted; context, decisions and activity persist indefinitely. Memory updates replace content in place and deletion removes the record and its search entry; there is no memory revision archive or undo API. `memory.updated` and `memory.deleted` activity records retain IDs, versions and actors, without copying the removed content. Existing memories are preserved during migration and begin at version 1. Agent IDs are self-reported identities, not authentication. The daemon accepts loopback access, validates Host/Origin and inputs, uses parameterized SQL, and exposes neither SQL nor filesystem access. Accounts, members and API keys exist only in the [hosted service](#hosted-service-on-cloudflare). There is no agent scheduling or web UI.
 
 ## Implementation
 

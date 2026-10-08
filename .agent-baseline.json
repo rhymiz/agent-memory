@@ -22,7 +22,8 @@
         "docs/outcome-tracking.md",
         "src/cloudflare/worker.ts",
         "wrangler.jsonc",
-        "src/domain/access.ts"
+        "src/domain/access.ts",
+        "src/api/sign-in.ts"
       ]
     },
     {
@@ -102,7 +103,13 @@
         "tsconfig.worker.json",
         "scripts/admin.ts",
         "scripts/deploy-cloudflare.sh",
-        "src/client/memory-client.ts"
+        "src/client/memory-client.ts",
+        "src/api/sign-in.ts",
+        "src/cloudflare/github-identity.ts",
+        "src/domain/members.ts",
+        "src/repositories/member-repository.ts",
+        "src/services/member-service.ts",
+        "src/db/migrations/credentials/002_members.sql"
       ]
     },
     {
@@ -199,7 +206,15 @@
         "tests/handler.test.ts",
         "tests/workers-ai-model.test.ts",
         "tests/client.test.ts",
-        "tests/ids.test.ts"
+        "tests/ids.test.ts",
+        "src/api/sign-in.ts",
+        "src/cloudflare/github-identity.ts",
+        "src/domain/members.ts",
+        "src/repositories/member-repository.ts",
+        "src/services/member-service.ts",
+        "src/db/migrations/credentials/002_members.sql",
+        "tests/members.test.ts",
+        "tests/sign-in.test.ts"
       ]
     },
     {

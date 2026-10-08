@@ -1,4 +1,4 @@
-export type IdPrefix = "mem" | "evt" | "clm" | "dec" | "key";
+export type IdPrefix = "mem" | "evt" | "clm" | "dec" | "key" | "mbr";
 
 // RFC 9562 UUIDv7 with a 12-bit counter in rand_a (method 1), so identifiers
 // from one process or isolate stay strictly increasing within a millisecond and

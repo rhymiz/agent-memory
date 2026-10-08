@@ -26,9 +26,11 @@ export const keyListInput = z.strictObject({
 });
 export const keyList = z.strictObject({ items: z.array(apiKey) });
 export const revokeKeyInput = z.strictObject({ keyId: identifier });
+// An authenticated caller: an API key or a signed-in member. The credential ID
+// is the key or member ID, used for rate limiting and attribution.
 export const principal = z.strictObject({
   accountId: identifier,
-  keyId: identifier,
+  credentialId: identifier,
   grant,
 });
 

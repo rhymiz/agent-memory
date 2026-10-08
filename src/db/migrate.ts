@@ -5,6 +5,7 @@ import memoryMutations from "./migrations/002_memory_mutations.sql" with { type:
 import embeddings from "./migrations/003_embeddings.sql" with { type: "text" };
 import decisionSearch from "./migrations/004_decision_search.sql" with { type: "text" };
 import credentials from "./migrations/credentials/001_credentials.sql" with { type: "text" };
+import members from "./migrations/credentials/002_members.sql" with { type: "text" };
 
 export interface Migration {
   version: number;
@@ -18,9 +19,10 @@ export const memoryMigrations: readonly Migration[] = [
   { version: 3, sql: embeddings },
   { version: 4, sql: decisionSearch },
 ];
-// Hosted service API keys, owned by the credential registry.
+// Hosted service API keys and members, owned by the credential registry.
 export const credentialMigrations: readonly Migration[] = [
   { version: 1, sql: credentials },
+  { version: 2, sql: members },
 ];
 
 export function migrate(

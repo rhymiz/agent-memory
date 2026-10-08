@@ -20,6 +20,8 @@ export const errorCode = z.enum([
   "PAYLOAD_TOO_LARGE",
   "RATE_LIMITED",
   "KEY_NOT_FOUND",
+  "MEMBER_NOT_FOUND",
+  "MEMBER_CONFLICT",
   "INTERNAL_ERROR",
 ]);
 export type ErrorCode = z.infer<typeof errorCode>;

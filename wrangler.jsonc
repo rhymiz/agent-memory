@@ -20,6 +20,10 @@
     "CredentialRegistry": { "type": "durable-object", "storage": "sqlite" },
   },
   "ai": { "binding": "AI" },
+  // OAuth clients, grants and tokens (hashed) for @cloudflare/workers-oauth-provider.
+  "kv_namespaces": [
+    { "binding": "OAUTH_KV", "id": "e924c6fe6b2c4c66b451810bb64e5d32" },
+  ],
   "ratelimits": [
     {
       "name": "KEY_RATE_LIMIT",
@@ -27,7 +31,13 @@
       "simple": { "limit": 600, "period": 60 },
     },
   ],
-  "secrets": { "required": ["AGENT_MEMORY_ADMIN_TOKEN"] },
+  "secrets": {
+    "required": [
+      "AGENT_MEMORY_ADMIN_TOKEN",
+      "GITHUB_CLIENT_ID",
+      "GITHUB_CLIENT_SECRET",
+    ],
+  },
   "vars": {
     "DEFAULT_CLAIM_TTL_SECONDS": "1800",
     "MAX_CLAIM_TTL_SECONDS": "3600",

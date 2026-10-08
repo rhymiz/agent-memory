@@ -3,22 +3,41 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { createAdminRouter } from "../src/api/admin-router";
-import { createGateway } from "../src/api/gateway";
+import {
+  bearerToken,
+  createAdminGateway,
+  createApiGateway,
+  failureResponse,
+} from "../src/api/gateway";
 import { createHttpHandler } from "../src/api/handler";
 import { createApplication } from "../src/application";
 import { BunSqliteStore } from "../src/db/bun-sqlite-store";
 import { openDatabase } from "../src/db/database";
 import { credentialMigrations, migrate } from "../src/db/migrate";
-import { ProjectAccess, type Grant } from "../src/domain/access";
-import { issuedKey, type IssuedKey } from "../src/domain/credentials";
+import {
+  ProjectAccess,
+  type Grant,
+  type OAuthScope,
+} from "../src/domain/access";
+import {
+  issuedKey,
+  type IssuedKey,
+  type Principal,
+} from "../src/domain/credentials";
+import { AppError } from "../src/domain/errors";
+import { member, type Member } from "../src/domain/members";
 import { SqliteCredentialRepository } from "../src/repositories/credential-repository";
+import { SqliteMemberRepository } from "../src/repositories/member-repository";
 import { CredentialService } from "../src/services/credential-service";
+import { MemberService } from "../src/services/member-service";
 import { TestEmbeddingModel } from "./helpers";
 
 export const adminToken = "test-admin-token";
 
-// The hosted gateway over Bun SQLite: the same credential, authorization and
-// application code the Worker composes, with one database per account.
+// The hosted service over Bun SQLite: the credential, member, gateway and
+// application code the Worker composes, with one database per account. The
+// OAuth provider library needs the Workers runtime, so a token table stands in
+// for its OAuth token validation; API keys and member grants use real services.
 export function hostedFixture() {
   const directory = mkdtempSync(join(tmpdir(), "agent-memory-hosted-"));
   let time = 1_789_063_200_000;
@@ -34,6 +53,16 @@ export function hostedFixture() {
     credentialStore,
     now,
   );
+  const members = new MemberService(
+    new SqliteMemberRepository(credentialStore),
+    credentialStore,
+    now,
+  );
+  // OAuth access tokens issued by the stand-in provider, mapped to grant props.
+  const oauthTokens = new Map<
+    string,
+    { memberId: string; scopes: OAuthScope[] }
+  >();
   const model = new TestEmbeddingModel();
   const accounts = new Map<string, Database>();
   const account = (accountId: string) => {
@@ -45,11 +74,12 @@ export function hostedFixture() {
     return new BunSqliteStore(db);
   };
   let admitted = true;
-  const gateway = createGateway({
+  const admin = createAdminGateway({
     adminToken,
-    authenticate: (token) => credentials.authenticate(token),
+    administer: createAdminRouter(credentials, members),
+  });
+  const api = createApiGateway({
     admit: async () => admitted,
-    administer: createAdminRouter(credentials),
     forward: (principal, request) =>
       createHttpHandler(
         createApplication(
@@ -62,11 +92,52 @@ export function hostedFixture() {
         () => {},
       ).fetch(request),
   });
-  const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: gateway });
+  const authenticate = async (token: string): Promise<Principal | null> => {
+    const oauth = oauthTokens.get(token);
+    return oauth
+      ? members.principal(oauth.memberId, oauth.scopes)
+      : credentials.authenticate(token);
+  };
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(request) {
+      if (new URL(request.url).pathname.startsWith("/admin/"))
+        return admin(request);
+      const token = bearerToken(request);
+      const principal = token === null ? null : await authenticate(token);
+      return principal === null
+        ? failureResponse(
+            new AppError(
+              "UNAUTHORIZED",
+              "A valid credential is required.",
+              401,
+            ),
+          )
+        : api(request, principal);
+    },
+  });
   const baseUrl = server.url.href;
   return {
     baseUrl,
     credentials,
+    members,
+    addMember(
+      accountId: string,
+      login: string,
+      subject: string,
+      grant: Grant,
+    ): Member {
+      return member.parse(
+        members.add({ accountId, provider: "github", subject, login, grant }),
+      );
+    },
+    // What a completed OAuth sign-in yields: a bearer token for the member.
+    signInToken(memberId: string, scopes: OAuthScope[]): string {
+      const token = `oauth-${memberId}-${oauthTokens.size}`;
+      oauthTokens.set(token, { memberId, scopes });
+      return token;
+    },
     advance(ms: number) {
       time += ms;
     },

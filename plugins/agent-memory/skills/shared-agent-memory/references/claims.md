@@ -6,8 +6,9 @@ all claim IDs and one renewal schedule; a conflict rejects the entire batch.
 Normalized duplicate resources are invalid. A successful response grants ownership;
 an error or denied tool call does not. On invalid input, fix the resource names
 and acquire again before editing. On a permission failure, including `FORBIDDEN`
-from a hosted API key without write access to the project, report it and continue
-only independent work that does not need the ungranted claim.
+from a hosted credential (API key or sign-in) without write access to the
+project, report it and continue only independent work that does not need the
+ungranted claim.
 For one file or an older daemon, use
 `claim_acquire({projectId, agentId, resource, intent})` in sorted order. Use resources
 such as `file:src/services/search.ts`, with project-relative `/` paths, no leading

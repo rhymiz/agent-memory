@@ -1,6 +1,6 @@
 {
   "name": "agent-memory",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Shared project memory and cooperative edit ownership through a local memd daemon.",
   "author": {
     "name": "rhymiz",
