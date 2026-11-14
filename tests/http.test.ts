@@ -132,6 +132,12 @@ test("boundary validation rejects malformed bodies, unknown fields and query par
       status: 400,
     },
     { path: "/projects/%E0%A4%A/context", method: "GET", status: 400 },
+    { path: "/memories?projectId=p&__proto__=1", method: "GET", status: 400 },
+    {
+      path: "/memories?projectId=p&minImportance=1e",
+      method: "GET",
+      status: 400,
+    },
   ];
   for (const item of cases) {
     const response = await fetch(new URL(item.path, f.baseUrl), {
@@ -144,6 +150,21 @@ test("boundary validation rejects malformed bodies, unknown fields and query par
       error: { code: "INVALID_REQUEST" },
     });
   }
+});
+
+test("importance thresholds the client serializes with an exponent are accepted", async () => {
+  const memory = await f
+    .client()
+    .remember({ type: "fact", content: "Scored record.", importance: 0.5 });
+  for (const minImportance of [1e-7, 0.5]) {
+    expect(String(1e-7)).toBe("1e-7");
+    expect((await f.client().listMemories({ minImportance })).items).toEqual([
+      memory,
+    ]);
+  }
+  expect((await f.client().listMemories({ minImportance: 0.6 })).items).toEqual(
+    [],
+  );
 });
 
 test("rejects browser origins and hostile Host headers", async () => {

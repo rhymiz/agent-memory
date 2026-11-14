@@ -14,11 +14,13 @@ export function excerptText(text: string, characters: number): TextExcerpt {
   if (end < text.length && /[\uDC00-\uDFFF]/u.test(text[end]!)) end--;
   const prefix = text.slice(0, end);
   // Prefer a complete sentence or line when one fits; long leads still truncate.
+  // A boundary inside leading whitespace would leave an excerpt with no text.
+  const firstText = text.search(/\S/u);
   let boundary = 0;
   for (const match of text.matchAll(/[.!?](?=\s|$)|\n/gu)) {
     const next = match.index + match[0].length;
     if (next > end) break;
-    boundary = next;
+    if (firstText !== -1 && next > firstText) boundary = next;
   }
   return { text: prefix.slice(0, boundary || end), truncated: true };
 }

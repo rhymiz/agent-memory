@@ -147,47 +147,52 @@ export class MemoryService {
       const limit = input.limit ?? 10;
       const candidates = Math.max(50, limit * 4);
       const lexical = this.repository.search({ ...input, limit: candidates });
-      const semantic = new Map<string, { memory: Memory; score: number }>();
-      for (const { memory, vector } of this.repository.embeddings(
+      type Scored = { id: string; createdAt: number; score: number };
+      const byRank = (a: Scored, b: Scored) =>
+        b.score - a.score ||
+        b.createdAt - a.createdAt ||
+        b.id.localeCompare(a.id);
+      const semantic = new Map<string, Scored>();
+      for (const chunk of this.repository.embeddings(
         input.projectId,
         this.model.id,
         this.model.dimensions,
         input,
       )) {
-        const score = cosine(query, vector);
+        const score = cosine(query, chunk.vector);
         if (score < 0.3) continue;
-        if (score > (semantic.get(memory.id)?.score ?? -Infinity))
-          semantic.set(memory.id, { memory, score });
+        if (score > (semantic.get(chunk.memoryId)?.score ?? -Infinity))
+          semantic.set(chunk.memoryId, {
+            id: chunk.memoryId,
+            createdAt: chunk.createdAt,
+            score,
+          });
       }
-      const ranked = [...semantic.values()]
-        .sort(
-          (a, b) =>
-            b.score - a.score ||
-            b.memory.createdAt - a.memory.createdAt ||
-            b.memory.id.localeCompare(a.memory.id),
-        )
-        .slice(0, candidates);
+      const ranked = [...semantic.values()].sort(byRank).slice(0, candidates);
       // Reciprocal rank fusion preserves exact-term hits and semantic paraphrases.
-      const fused = new Map<string, { memory: Memory; score: number }>();
-      for (const list of [lexical, ranked.map((item) => item.memory)]) {
-        list.forEach((memory, index) => {
-          const current = fused.get(memory.id);
-          fused.set(memory.id, {
-            memory,
-            score: (current?.score ?? 0) + 1 / (60 + index + 1),
+      const fused = new Map<string, Scored>();
+      for (const list of [lexical, ranked]) {
+        list.forEach(({ id, createdAt }, index) => {
+          fused.set(id, {
+            id,
+            createdAt,
+            score: (fused.get(id)?.score ?? 0) + 1 / (60 + index + 1),
           });
         });
       }
+      const top = [...fused.values()].sort(byRank).slice(0, limit);
+      // Only the returned memories are loaded; lexical hits are already full records.
+      const memories = new Map(lexical.map((memory) => [memory.id, memory]));
+      for (const memory of this.repository.getMany(
+        input.projectId,
+        top.filter(({ id }) => !memories.has(id)).map(({ id }) => id),
+      ))
+        memories.set(memory.id, memory);
       return {
-        items: [...fused.values()]
-          .sort(
-            (a, b) =>
-              b.score - a.score ||
-              b.memory.createdAt - a.memory.createdAt ||
-              b.memory.id.localeCompare(a.memory.id),
-          )
-          .slice(0, limit)
-          .map((item) => item.memory),
+        items: top.flatMap(({ id }) => {
+          const memory = memories.get(id);
+          return memory ? [memory] : [];
+        }),
       };
     });
   }

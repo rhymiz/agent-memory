@@ -9,7 +9,6 @@ import {
 } from "../domain/contracts";
 import { storedMetadata, type SqliteStore } from "./sqlite-store";
 import { z } from "zod";
-import { normalized } from "../domain/embedding";
 
 export interface MemoryRepository {
   insert(memory: Memory): void;
@@ -23,14 +22,27 @@ export interface MemoryRepository {
     modelId: string,
     vectors: Float32Array[],
   ): void;
+  getMany(projectId: string, ids: readonly string[]): Memory[];
+  // Current chunk vectors for scoring, newest memory first. Memory records are
+  // left out: a search scores every chunk but returns few memories.
   embeddings(
     projectId: string,
     modelId: string,
     dimensions: number,
     filter?: MemoryFilter,
-  ): { memory: Memory; vector: Float32Array }[];
+  ): EmbeddedChunk[];
   unindexed(modelId: string, limit: number): Memory[];
 }
+export interface EmbeddedChunk {
+  memoryId: string;
+  createdAt: number;
+  vector: Float32Array;
+}
+const chunkRow = z.strictObject({
+  memoryId: z.string(),
+  createdAt: z.number(),
+  vector: z.instanceof(Uint8Array),
+});
 const row = memorySchema.extend({ metadata: storedMetadata });
 const columns = `m.id, m.project_id AS projectId, m.agent_id AS agentId,
   m.type, m.content, m.importance, m.metadata, m.created_at AS createdAt,
@@ -78,23 +90,34 @@ export class SqliteMemoryRepository implements MemoryRepository {
     modelId: string,
     dimensions: number,
     filter: MemoryFilter = {},
-  ): { memory: Memory; vector: Float32Array }[] {
+  ): EmbeddedChunk[] {
+    const bytes = dimensions * Float32Array.BYTES_PER_ELEMENT;
     return this.store
       .all(
-        row.extend({ vector: z.instanceof(Uint8Array) }),
-        `SELECT ${columns}, e.vector FROM memories m JOIN memory_embeddings e
+        chunkRow,
+        `SELECT m.id AS memoryId, m.created_at AS createdAt, e.vector
+       FROM memories m JOIN memory_embeddings e
        ON m.id = e.memory_id AND m.version = e.memory_version
        WHERE m.project_id = ? AND e.model_id = ? AND ${filterSql}
        ORDER BY m.created_at DESC, m.id DESC, e.chunk_index`,
         [projectId, modelId, ...filterParams(filter)],
       )
-      .map(({ vector, ...memory }) => ({
-        memory,
-        vector: normalized(
-          new Float32Array(Uint8Array.from(vector).buffer),
-          dimensions,
-        ),
-      }));
+      .map(({ vector, ...chunk }) => {
+        if (vector.byteLength !== bytes)
+          throw new Error("Stored embedding has unexpected dimensions");
+        // Vectors are normalized when written. Copy the bytes: a BLOB's offset
+        // need not be aligned for a Float32Array view.
+        return { ...chunk, vector: new Float32Array(vector.slice().buffer) };
+      });
+  }
+  getMany(projectId: string, ids: readonly string[]): Memory[] {
+    if (!ids.length) return [];
+    return this.store.all(
+      row,
+      `SELECT ${columns} FROM memories m
+      WHERE m.project_id = ? AND m.id IN (SELECT value FROM json_each(?))`,
+      [projectId, JSON.stringify(ids)],
+    );
   }
   unindexed(modelId: string, limit: number): Memory[] {
     return this.store.all(

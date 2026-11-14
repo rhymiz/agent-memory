@@ -39,7 +39,8 @@ export async function body<T>(
 }
 
 function query<T>(url: URL, schema: z.ZodType<T>, extra: Params = {}): T {
-  const values: Record<string, unknown> = {};
+  // No prototype: a parameter named __proto__ stays an ordinary unknown key.
+  const values: Record<string, unknown> = Object.create(null);
   for (const [key, value] of url.searchParams) {
     if (Object.hasOwn(values, key))
       throw new AppError(
@@ -55,7 +56,8 @@ function query<T>(url: URL, schema: z.ZodType<T>, extra: Params = {}): T {
   }
   if (
     typeof values.minImportance === "string" &&
-    /^\d+(\.\d+)?$/.test(values.minImportance)
+    // Small numbers serialize with an exponent, e.g. String(1e-7).
+    /^\d+(\.\d+)?(e[+-]?\d+)?$/i.test(values.minImportance)
   )
     values.minImportance = Number(values.minImportance);
   if (typeof values.types === "string") values.types = values.types.split(",");
