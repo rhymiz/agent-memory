@@ -2,27 +2,28 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { z } from "zod";
 
+// Number coercion reads "" as 0, which would silently select a random port,
+// and accepts hexadecimal and exponent forms. Require decimal digits.
+function integer(min: number, max: number) {
+  return z
+    .string()
+    .trim()
+    .regex(/^\d+$/, "Must be a decimal integer.")
+    .transform(Number)
+    .pipe(z.number().int().min(min).max(max));
+}
+
 const configSchema = z
   .object({
     host: z.enum(["127.0.0.1", "localhost", "::1"]).default("127.0.0.1"),
-    port: z.coerce.number().int().min(0).max(65535).default(8787),
+    port: integer(0, 65535).default(8787),
     dbPath: z
       .string()
       .trim()
       .min(1)
       .default(`${homedir()}/.agent-memory/memory.sqlite`),
-    defaultTtlSeconds: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(2_147_483_647)
-      .default(1800),
-    maxTtlSeconds: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(2_147_483_647)
-      .default(3600),
+    defaultTtlSeconds: integer(1, 2_147_483_647).default(1800),
+    maxTtlSeconds: integer(1, 2_147_483_647).default(3600),
   })
   .refine(
     (value) => value.defaultTtlSeconds <= value.maxTtlSeconds,

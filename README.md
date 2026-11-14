@@ -439,7 +439,7 @@ the environment rather than the configuration file:
 | `AGENT_MEMORY_DEFAULT_CLAIM_TTL` | `1800` seconds                  |
 | `AGENT_MEMORY_MAX_CLAIM_TTL`     | `3600` seconds                  |
 
-Only loopback hosts (`127.0.0.1`, `localhost`, `::1`) are accepted. Port `0` lets the OS select a free port, reported in the startup log. Relative database paths resolve against the daemon's working directory; `~/` is expanded.
+Only loopback hosts (`127.0.0.1`, `localhost`, `::1`) are accepted. Port `0` lets the OS select a free port, reported in the startup log. The port and TTLs must be decimal integers; an empty or non-decimal value fails startup. Relative database paths resolve against the daemon's working directory; `~/` is expanded.
 
 For project-local persistence:
 

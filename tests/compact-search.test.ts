@@ -52,6 +52,19 @@ test("compact search preserves leading scope despite a distant query match", asy
   expect(await f.client().getMemory(memory.id)).toEqual(memory);
 });
 
+test("a truncated excerpt never stops inside leading blank lines", async () => {
+  const lead = "\n\n  QUASAR_7 applies to imports only";
+  await f.client().remember({
+    type: "note",
+    content: lead + " and continues without punctuation".repeat(60),
+  });
+  const compact = await f.client().searchCompact({ query: "QUASAR_7" });
+  const excerpt = compact.items[0]!.excerpt;
+  expect(excerpt.truncated).toBe(true);
+  expect(excerpt.text).toStartWith(lead);
+  expect(excerpt.text).toHaveLength(800);
+});
+
 test("budget and count omissions preserve rank and are distinct from excerpt truncation", async () => {
   for (let index = 0; index < 12; index++) {
     await f.client().remember({

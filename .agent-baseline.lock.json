@@ -59,7 +59,7 @@
     },
     {
       "source": "README.md",
-      "sha256": "fd71d8eb0f92b787b757edeacd3999e16c413f16d789c6c29b1c8c7911b2dc3c"
+      "sha256": "9d9f11cf1cecb78c07bf647b236d8f817e322b9124ceed397293d2541b74437d"
     },
     {
       "source": "docs/agent-instructions.md",
@@ -183,7 +183,7 @@
     },
     {
       "source": "src/api/router.ts",
-      "sha256": "f40368e61f30d52381b15ae981a29f043bf945f57c9e23e626a31e11b32bebb7"
+      "sha256": "3f7acde6d0164f4df0e6086d08030e1690143ceb6fb338042861437719afa644"
     },
     {
       "source": "src/api/server.ts",
@@ -219,7 +219,7 @@
     },
     {
       "source": "src/config.ts",
-      "sha256": "1a8b62fd1166c0ac97c9edf15e7887e1e03e4e671f55db709229aba60f47136a"
+      "sha256": "3e30ef0db1ee30637b42c0eac914be020e2572e70185548772c583a967b4981b"
     },
     {
       "source": "src/db/bun-sqlite-store.ts",
@@ -279,7 +279,7 @@
     },
     {
       "source": "src/domain/projections.ts",
-      "sha256": "5b0f315dc3876bb0c439c56fb27c3ea9e855bdb744a199b6df12888844bb9b9f"
+      "sha256": "08b9533518f2b6ae48f1c6491382369674f69dde0b0e1d2030693ebf722d5f62"
     },
     {
       "source": "src/domain/resource.ts",
@@ -363,7 +363,7 @@
     },
     {
       "source": "src/services/memory-service.ts",
-      "sha256": "643e019e3ac68295409a2a50fb414252f29bf620b470d29b2b4a5f8f8464ab58"
+      "sha256": "b44ee5b9d5be0ba2e1a0e518c97c144ab887b0ea6eced70339ba9a7bf3e2a0aa"
     },
     {
       "source": "tests/briefing.test.ts",
@@ -383,7 +383,7 @@
     },
     {
       "source": "tests/compact-search.test.ts",
-      "sha256": "c74270b65e9620068e5f3923616d8f6c198a2645392774513bdade821204df43"
+      "sha256": "9737330879748f29b85e15af2920553667b086bb9c9af97e9872739446737f8a"
     },
     {
       "source": "tests/decision-search.test.ts",
@@ -391,7 +391,7 @@
     },
     {
       "source": "tests/domain.test.ts",
-      "sha256": "3dd4d818df17b4dc4153d667c50f8a51bc6493b5e8ed6404c7a07d16efc92d5b"
+      "sha256": "bff5cb60b664f4cf2ee3da3ea679642162f54ccce9f5573a71039a484f8089ae"
     },
     {
       "source": "tests/gateway.test.ts",
@@ -411,7 +411,7 @@
     },
     {
       "source": "tests/http.test.ts",
-      "sha256": "0976deb6c0046892076e731e65d6d25fbf160b0fe893a69d0969eb3b48e2d73b"
+      "sha256": "9788caceb5e2175384dd5b81d4be180d16f2aae7e9341c6d1a924ceefe158652"
     },
     {
       "source": "tests/ids.test.ts",

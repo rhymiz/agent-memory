@@ -482,5 +482,11 @@ describe("activity and configuration", () => {
       }),
     ).toThrow();
     expect(() => readConfig({ AGENT_MEMORY_PORT: "garbage" })).toThrow();
+    // An empty or non-decimal value must not coerce to a different port.
+    for (const port of ["", " ", "0x1F90", "8e3", "-1", "65536"])
+      expect(() => readConfig({ AGENT_MEMORY_PORT: port })).toThrow();
+    expect(readConfig({ AGENT_MEMORY_PORT: "0" }).port).toBe(0);
+    expect(readConfig({ AGENT_MEMORY_PORT: " 9000 " }).port).toBe(9000);
+    expect(() => readConfig({ AGENT_MEMORY_MAX_CLAIM_TTL: "" })).toThrow();
   });
 });
